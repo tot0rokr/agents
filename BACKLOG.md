@@ -9,9 +9,10 @@ priority within each section.
       `bash-command-style`, `critical-file-safety`, `git-commit-workflow`,
       `safe-file-operations`. All have valid frontmatter and dir name matches
       `name:` field. Discoverable via `~/.claude/skills` and `~/.agents/skills`.
-- [ ] `shared/mcp/servers.json` — currently `{"servers": {}}`. Populate with
-      real MCP server definitions, then run `scripts/render-mcp.sh` to push
-      them into all four tool configs.
+- [x] `shared/mcp/servers.json` — added Linear MCP (remote HTTP, OAuth 2.1).
+      `render-mcp.sh` rewritten to handle remote vs stdio per tool: Claude
+      `{type:"http",url}`, Codex `url=…`, OpenCode `{type:"remote",…}`,
+      Gemini `{httpUrl:…}`. End-to-end run validated.
 - [ ] `shared/subagents/` — add sub-agent definitions in the
       claude/opencode-compatible `.md`-with-frontmatter format. Minimum
       common fields: `name`, `description`, `tools`.
@@ -24,9 +25,9 @@ priority within each section.
 
 ## Live verification still pending
 
-- [ ] `scripts/render-mcp.sh` — never executed end-to-end. Blocked by empty
-      `servers.json`. Run once with at least one real MCP server defined
-      and confirm output in all four tool configs.
+- [x] `scripts/render-mcp.sh` — executed against Linear MCP. All four tool
+      configs verified with correct per-tool field names (`type/url`,
+      `httpUrl`, `type:"remote"`, TOML `url=`).
 - [ ] `scripts/render-gemini-commands.sh` — never executed. Blocked by empty
       `shared/commands/`.
 - [ ] `scripts/install.sh` Phase 3 — logic mirrors the manual restore done

@@ -13,3 +13,6 @@ theme = "tokyonight"
 # --- generated below this line ---
 
 [mcp_servers]
+
+[mcp_servers.linear]
+url = "https://mcp.linear.app/mcp"

@@ -1,5 +1,11 @@
 {
-  "$schema": "./servers.schema.json",
-  "_comment": "Canonical MCP server definitions. Edit this file and run scripts/render-mcp.sh to regenerate tool-specific configs (claude/settings.json, codex/config.toml, opencode/opencode.json, gemini/settings.json).",
-  "servers": {}
+  "_comment": "Canonical MCP server definitions. Edit this file and run scripts/render-mcp.sh to regenerate each tool's native MCP config block. Schema: each server has either a `url` + `transport` (for remote HTTP/SSE servers) OR a `command` + `args` (for local stdio servers). Optional: `description`, `headers`, `env`, `enabled`.",
+
+  "servers": {
+    "linear": {
+      "description": "Linear — issues, projects, comments. OAuth 2.1 (interactive on first use).",
+      "url": "https://mcp.linear.app/mcp",
+      "transport": "http"
+    }
+  }
 }

@@ -1,7 +1,11 @@
 {
   "$schema": "https://geminicli.com/schema/settings.json",
   "contextFileName": "GEMINI.md",
-  "mcpServers": {},
+  "mcpServers": {
+    "linear": {
+      "httpUrl": "https://mcp.linear.app/mcp"
+    }
+  },
   "hooks": {},
   "tools": {
     "allowed": [],

@@ -6,6 +6,12 @@
   "plugin": [
     "oh-my-openagent@latest"
   ],
-  "mcp": {},
+  "mcp": {
+    "linear": {
+      "type": "remote",
+      "url": "https://mcp.linear.app/mcp",
+      "enabled": true
+    }
+  },
   "permission": {}
 }
