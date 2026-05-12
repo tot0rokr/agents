@@ -1,0 +1,56 @@
+# Local-only overrides
+**/settings.local.json
+**/*.local.json
+
+# --- Claude Code runtime state ---
+# These directories and files are written by Claude Code at runtime once
+# ~/.claude is symlinked to agents/claude. We don't track them in git.
+claude/.credentials.json
+claude/.last-cleanup
+claude/history.jsonl
+claude/policy-limits.json
+claude/mcp-needs-auth-cache.json
+claude/backups/
+claude/cache/
+claude/downloads/
+claude/file-history/
+claude/paste-cache/
+claude/plans/
+claude/session-env/
+claude/sessions/
+claude/shell-snapshots/
+claude/tasks/
+claude/telemetry/
+claude/plugins/marketplaces/
+
+# Per-project runtime state, except the symlink to shared/memory.
+# install.sh creates ~/.claude/projects/-home-junho/memory as a symlink to
+# shared/memory; the symlink itself is tracked so the path is reproducible.
+claude/projects/
+!claude/projects/-home-junho/
+!claude/projects/-home-junho/memory
+
+# --- Codex runtime state ---
+codex/auth.json
+codex/sessions/
+codex/memories/
+codex/history.jsonl
+codex/log/
+
+# --- OpenCode runtime state ---
+opencode/auth/
+opencode/cache/
+opencode/sessions/
+opencode/log/
+opencode/state/
+
+# --- Gemini runtime state ---
+gemini/oauth_creds.json
+gemini/installation_id
+gemini/tmp/
+gemini/google_accounts.json
+
+# --- Editor noise ---
+.DS_Store
+*.swp
+*.swo

@@ -1,0 +1,13 @@
+{
+  "$schema": "https://geminicli.com/schema/settings.json",
+  "contextFileName": "GEMINI.md",
+  "mcpServers": {},
+  "hooks": {},
+  "tools": {
+    "allowed": [],
+    "confirmationRequired": []
+  },
+  "ui": {
+    "theme": "Default"
+  }
+}

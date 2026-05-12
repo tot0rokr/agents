@@ -1,0 +1,2 @@
+- [Keep cross-platform OS branches](feedback_keep_cross_platform_branches.md) — don't strip macOS/Linux forks from dotfiles even when user is currently on one OS
+- [Verify fix in user's actual environment](feedback_verify_in_user_env.md) — don't claim root cause from one synthetic repro that passes; consider stale state (orphans, dead sockets) first
