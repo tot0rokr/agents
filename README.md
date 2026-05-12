@@ -82,6 +82,84 @@ point at this repo are skipped.
 | `shared/commands/<name>.md` | Claude, Codex (`~/.codex/prompts/`), OpenCode directly. Run `render-gemini-commands.sh` to push to Gemini. |
 | `shared/mcp/servers.json` | Canonical. Run `render-mcp.sh` to write into all 4 tool configs. |
 
+## Adding new content
+
+Most additions are zero-build — drop a file in the canonical location and all four tools see it. MCP servers and Gemini slash commands are the two exceptions; they go through render scripts because the per-tool formats diverge.
+
+### A new MCP server
+
+Edit `shared/mcp/servers.json`, then run `scripts/render-mcp.sh`. The schema accepts both remote HTTP/SSE servers and local stdio servers; the script picks the right per-tool format from the fields you set.
+
+```json
+{
+  "servers": {
+    "linear": {
+      "description": "Linear — issues, projects",
+      "url": "https://mcp.linear.app/mcp",
+      "transport": "http"
+    },
+    "filesystem": {
+      "description": "Local filesystem access",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/junho"]
+    }
+  }
+}
+```
+
+`url` → remote (`transport` defaults to `http`; set `"sse"` for SSE). `command` → stdio.
+
+After rendering, commit all five files together: the canonical source plus the four regenerated tool configs. OAuth-based servers (Linear, GitHub, etc.) prompt for authorization the first time a tool needs them; tokens are cached per-tool, never in this repo.
+
+### A new skill
+
+Drop a directory under `universal/skills/<name>/` containing `SKILL.md`. Frontmatter requires `name` (must match the directory) and `description`.
+
+```
+universal/skills/<name>/SKILL.md
+```
+
+```markdown
+---
+name: <name>
+description: One-sentence trigger description — agents read this to decide when the skill applies.
+---
+
+Body of the skill: what to do, what not to do.
+```
+
+All four tools auto-discover. No render step.
+
+### A new sub-agent
+
+Drop `shared/subagents/<name>.md` with `name` + `description` frontmatter and the system prompt as the body. Claude (`~/.claude/agents/`) and OpenCode (`~/.config/opencode/agents/`) read it directly via the install-time symlinks. Codex and Gemini don't read `.md` sub-agents and would need their own render script — not implemented.
+
+### A new slash command
+
+Drop `shared/commands/<name>.md` with `description` frontmatter. Use `$ARGUMENTS` to access whatever the user typed after the command.
+
+```markdown
+---
+description: <one-line summary shown in /help>
+---
+
+Prompt body, possibly multi-step. End with: $ARGUMENTS
+```
+
+Claude, Codex (`~/.codex/prompts/`), and OpenCode all read these `.md` files directly. To push to Gemini (which only accepts TOML), run `scripts/render-gemini-commands.sh`. Commit the generated `gemini/commands/<name>.toml` alongside the source.
+
+## When to run render scripts
+
+| Edited | Run |
+|---|---|
+| `shared/mcp/servers.json` | `scripts/render-mcp.sh` |
+| `shared/commands/*.md` | `scripts/render-gemini-commands.sh` (only Gemini needs it) |
+| `shared/AGENTS.md`, `shared/instructions/*.md`, `shared/memory/*.md` | Nothing — symlinks pick up changes live. |
+| `universal/skills/*/SKILL.md` | Nothing — auto-discovered live. |
+| `shared/subagents/*.md` | Nothing — symlinks pick up changes live (Claude / OpenCode). |
+
+Render scripts are idempotent and preserve user-meaningful sections of each tool's config. The Codex renderer also strips a small set of ephemeral runtime sections (e.g. the `[tui.model_availability_nux]` click counter) so the committed `codex/config.toml` stays clean across CLI runs.
+
 ## Hooks
 
 Hook schemas don't share well across tools (event names and payload formats
@@ -104,3 +182,31 @@ differ), so hooks live inside each tool's native config:
 | MCP servers | yes | yes | yes | yes |
 | Plugins / Extensions | yes | yes | yes | yes |
 | Output styles | yes (persona) | TUI only | themes only | themes only |
+
+## Troubleshooting
+
+`scripts/doctor.sh` is the first stop. It walks every internal symlink, parses every JSON/TOML config, and verifies the home-dir symlinks (if `install.sh` has run). A clean run prints `doctor: all checks passed`.
+
+Common gotchas:
+
+- **`/resume` in Claude Code shows no conversations** — Claude organises transcripts per cwd at `~/.claude/projects/<slug-of-cwd>/*.jsonl`. If you launched Claude from a different directory than where the conversations live, switch cwd and try again. `install.sh` Phase 2 creates a memory symlink under each known slug so the memory pool is shared even though the transcripts aren't.
+
+- **A tool config keeps drifting after every CLI run** — some tools mutate their own config: Codex bumps the NUX click counter, OpenCode's `oh-my-openagent` plugin drops timestamped backup files. `render-mcp.sh` strips known ephemeral Codex sections; OpenCode plugin backups are in `.gitignore`. New drift you can't kill? Add the offending section/pattern to the matching ignore list.
+
+- **A render script's output looks wrong** — its source is `shared/mcp/servers.json` (or `shared/commands/`). Edit the canonical source, never the rendered file. Re-running render is non-destructive: only the generated sections are replaced, user-meaningful sections like `[projects."<path>"]` survive.
+
+- **Linear / GitHub / Notion MCP says "not authenticated"** — expected on first use. Each tool runs its own OAuth flow on first request (browser opens, you approve). Tokens cache per-tool, never shared. Re-auth required if you revoke or switch workspaces.
+
+- **`install.sh` complains about an existing target** — it backs the existing directory up to `<target>.bak.<timestamp>` before symlinking. Inspect that backup if anything important was inside. Phase 3 then restores runtime data (credentials, sessions, transcripts, `file-history/`, `settings.local.json` permissions) so re-login is usually unnecessary.
+
+## Updating
+
+```bash
+cd ~/agents
+git pull
+scripts/render-mcp.sh             # if shared/mcp/servers.json changed upstream
+scripts/render-gemini-commands.sh # if shared/commands/ changed upstream
+scripts/doctor.sh                 # sanity check
+```
+
+`install.sh` does not need to re-run on a routine pull — the home-dir symlinks already point at the repo, so anything you pull is immediately live in all four CLIs.
