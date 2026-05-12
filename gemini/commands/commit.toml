@@ -1,0 +1,17 @@
+description = "Compose and create a git commit from currently-staged changes"
+prompt = """
+Compose a commit for currently-staged changes.
+
+1. Run `git status --short` and `git diff --cached`. If nothing is staged, tell the user to stage files first and stop.
+2. Look at `git log --oneline -5` to match this repo's commit-message style.
+3. Draft a commit message:
+   - Subject under 72 chars, imperative mood, no trailing period.
+   - Body (optional) explains the *why*, wraps at ~72 chars.
+   - Reference the relevant `instructions/` or `skills/` file if the change implements a documented rule.
+4. Show the draft and ask: "Commit with this? (y/edit/cancel)".
+5. On `y`, commit. On `edit`, accept the user's rewrite, then commit. On `cancel`, stop.
+
+Honor the `git-commit-workflow` skill: only commit what you (the agent) actually changed; never `git add -A` or `git add .`; never `--no-verify` without explicit user request.
+
+Extra context from the user: $ARGUMENTS
+"""

@@ -1,0 +1,15 @@
+description = "Run the code-reviewer sub-agent on staged changes, files, or a PR"
+prompt = """
+Delegate this review to the `code-reviewer` sub-agent. Determine scope from `$ARGUMENTS`:
+
+- Empty → review currently-staged changes (`git diff --cached`).
+- Path(s) → review those files (`git diff -- <paths>` for tracked changes, or full file contents if untracked).
+- A PR reference like `#123` or `PR 123` → resolve via `gh pr view <num> --json files,baseRefName,headRefName` and review the changed files.
+- A branch or commit-ish (e.g. `main..feature/x`) → diff that range.
+
+Pass the diff or file paths to `code-reviewer` and surface its output verbatim. Don't summarise or paraphrase findings — the severity prefixes (`CRITICAL` / `MAJOR` / `MINOR`) and `file:line` references must reach the user unchanged.
+
+If the sub-agent isn't available in the current tool, fall back to performing the review yourself, following the same rules from `shared/subagents/code-reviewer.md`.
+
+$ARGUMENTS
+"""

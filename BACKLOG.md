@@ -19,10 +19,9 @@ priority within each section.
       Frontmatter intentionally minimal (name + description only) for
       cross-tool compat. Codex/Gemini sub-agents would need separate
       render scripts; deferred until needed.
-- [ ] `shared/commands/` — add custom slash commands as `.md` files.
-      Claude/Codex/OpenCode read them directly; run
-      `scripts/render-gemini-commands.sh` to also push them into Gemini's
-      `.toml` format.
+- [x] `shared/commands/` — added 3 commands: `/commit`, `/review`, `/audit`.
+      Claude / Codex (via `~/.codex/prompts/`) / OpenCode read `.md` directly;
+      Gemini equivalents rendered to `.toml` by `render-gemini-commands.sh`.
 - [ ] `shared/output-styles/` — Claude-only today, but reserved. Add when
       needed.
 
@@ -31,8 +30,9 @@ priority within each section.
 - [x] `scripts/render-mcp.sh` — executed against Linear MCP. All four tool
       configs verified with correct per-tool field names (`type/url`,
       `httpUrl`, `type:"remote"`, TOML `url=`).
-- [ ] `scripts/render-gemini-commands.sh` — never executed. Blocked by empty
-      `shared/commands/`.
+- [x] `scripts/render-gemini-commands.sh` — executed against the 3 commands.
+      Output `.toml` files verified well-formed (`description` + triple-quoted
+      `prompt`).
 - [ ] `scripts/install.sh` Phase 3 — logic mirrors the manual restore done
       this session, but no end-to-end live test (would require destroying
       `~/.claude` during a session).
