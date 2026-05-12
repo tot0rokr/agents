@@ -43,6 +43,10 @@ opencode/cache/
 opencode/sessions/
 opencode/log/
 opencode/state/
+# oh-my-openagent plugin's auto-migration backups and ledger files
+opencode/*.backup-*
+opencode/*.bak.*
+opencode/*.migrations.json
 
 # --- Gemini runtime state ---
 gemini/oauth_creds.json

@@ -2,42 +2,108 @@
   "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-openagent/dev/assets/oh-my-opencode.schema.json",
   "agents": {
     "sisyphus": {
-      "model": "openai/gpt-5.4",
-      "variant": "medium"
+      "model": "openai/gpt-5.5",
+      "variant": "medium",
+      "fallback_models": [
+        {
+          "model": "openai/gpt-5.5",
+          "variant": "medium"
+        }
+      ]
     },
     "hephaestus": {
-      "model": "openai/gpt-5.4",
+      "model": "openai/gpt-5.5",
       "variant": "medium"
     },
     "oracle": {
-      "model": "openai/gpt-5.4",
-      "variant": "high"
+      "model": "openai/gpt-5.5",
+      "variant": "high",
+      "fallback_models": [
+        {
+          "model": "anthropic/claude-opus-4-7",
+          "variant": "max"
+        }
+      ]
+    },
+    "librarian": {
+      "model": "openai/gpt-5.4-mini-fast",
+      "fallback_models": [
+        {
+          "model": "anthropic/claude-haiku-4-5"
+        },
+        {
+          "model": "openai/gpt-5.4-nano"
+        }
+      ]
     },
     "explore": {
-      "model": "opencode/gpt-5-nano"
+      "model": "opencode/gpt-5-nano",
+      "fallback_models": [
+        {
+          "model": "anthropic/claude-haiku-4-5"
+        },
+        {
+          "model": "openai/gpt-5.4-nano"
+        }
+      ]
     },
     "multimodal-looker": {
-      "model": "openai/gpt-5.4",
-      "variant": "medium"
+      "model": "openai/gpt-5.5",
+      "variant": "medium",
+      "fallback_models": [
+        {
+          "model": "openai/gpt-5-nano"
+        }
+      ]
     },
     "prometheus": {
-      "model": "openai/gpt-5.4",
-      "variant": "high"
+      "model": "openai/gpt-5.5",
+      "variant": "high",
+      "fallback_models": [
+        {
+          "model": "openai/gpt-5.5",
+          "variant": "high"
+        }
+      ]
     },
     "metis": {
-      "model": "openai/gpt-5.4",
-      "variant": "high"
+      "model": "openai/gpt-5.5",
+      "variant": "high",
+      "fallback_models": [
+        {
+          "model": "openai/gpt-5.5",
+          "variant": "high"
+        }
+      ]
     },
     "momus": {
-      "model": "openai/gpt-5.4",
-      "variant": "xhigh"
+      "model": "openai/gpt-5.5",
+      "variant": "xhigh",
+      "fallback_models": [
+        {
+          "model": "anthropic/claude-opus-4-7",
+          "variant": "max"
+        }
+      ]
     },
     "atlas": {
-      "model": "openai/gpt-5.4",
+      "model": "openai/gpt-5.5",
+      "fallback_models": [
+        {
+          "model": "openai/gpt-5.5",
+          "variant": "medium"
+        }
+      ],
       "variant": "medium"
     },
     "sisyphus-junior": {
-      "model": "openai/gpt-5.4",
+      "model": "openai/gpt-5.5",
+      "fallback_models": [
+        {
+          "model": "openai/gpt-5.5",
+          "variant": "medium"
+        }
+      ],
       "variant": "medium"
     }
   },
@@ -47,35 +113,64 @@
       "variant": "high"
     },
     "ultrabrain": {
-      "model": "openai/gpt-5.4",
-      "variant": "xhigh"
+      "model": "openai/gpt-5.5",
+      "variant": "xhigh",
+      "fallback_models": [
+        {
+          "model": "anthropic/claude-opus-4-7",
+          "variant": "max"
+        }
+      ]
     },
     "deep": {
-      "model": "openai/gpt-5.4",
-      "variant": "medium"
+      "model": "openai/gpt-5.5",
+      "variant": "medium",
+      "fallback_models": [
+        {
+          "model": "anthropic/claude-opus-4-7",
+          "variant": "max"
+        }
+      ]
     },
     "artistry": {
       "model": "google/gemini-3.1-pro-preview",
-      "variant": "high"
+      "variant": "high",
+      "fallback_models": [
+        {
+          "model": "openai/gpt-5.5"
+        }
+      ]
     },
     "quick": {
-      "model": "openai/gpt-5.4-mini"
+      "model": "openai/gpt-5.4-mini",
+      "fallback_models": [
+        {
+          "model": "anthropic/claude-haiku-4-5"
+        }
+      ]
     },
     "unspecified-low": {
-      "model": "openai/gpt-5.4",
+      "model": "openai/gpt-5.5",
+      "fallback_models": [
+        {
+          "model": "openai/gpt-5.3-codex",
+          "variant": "medium"
+        }
+      ],
       "variant": "medium"
     },
     "unspecified-high": {
-      "model": "openai/gpt-5.4",
-      "variant": "medium"
+      "model": "openai/gpt-5.5",
+      "variant": "medium",
+      "fallback_models": [
+        {
+          "model": "openai/gpt-5.5",
+          "variant": "high"
+        }
+      ]
     },
     "writing": {
       "model": "google/gemini-3-flash-preview"
     }
-  },
-  "_migrations": [
-    "model-version:openai/gpt-5.3-codex->openai/gpt-5.4",
-    "model-version:openai/gpt-5.3-codex->openai/gpt-5.4",
-    "model-version:openai/gpt-5.3-codex->openai/gpt-5.4"
-  ]
+  }
 }
