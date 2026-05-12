@@ -100,22 +100,35 @@ jq --argjson s "$SERVERS_RAW" "$JQ_LIB"'
 echo "wrote $OPENCODE_FILE"
 
 # --- Codex: config.toml [mcp_servers.<name>] ---
-# Codex supports both stdio (command/args/env) and HTTP (url/http_headers)
-# natively. We preserve everything before the `[mcp_servers]` marker and
-# regenerate the section below it.
+# Codex supports both stdio and HTTP natively. We strip all existing
+# `[mcp_servers]` and `[mcp_servers.*]` sections, preserve every other
+# section in its original order, and append the regenerated MCP block at
+# the end. This survives Codex CLI writing its own sections anywhere in
+# the file (e.g. [projects."<path>"] for trust settings).
 CODEX_FILE="$REPO_ROOT/codex/config.toml"
 python3 - "$SRC" "$CODEX_FILE" <<'PY'
-import json, sys, pathlib
+import json, re, sys, pathlib
 
 src, dst = sys.argv[1], sys.argv[2]
 servers = json.loads(pathlib.Path(src).read_text()).get("servers", {})
 text = pathlib.Path(dst).read_text()
 
-marker = "[mcp_servers]"
-if marker in text:
-    head = text.split(marker, 1)[0].rstrip() + "\n\n"
-else:
-    head = text.rstrip() + "\n\n"
+header_re = re.compile(r'^\s*\[([^\]]+)\]\s*$')
+
+def is_mcp(section: str) -> bool:
+    return section == "mcp_servers" or section.startswith("mcp_servers.")
+
+preserved = []
+skipping = False
+for line in text.splitlines():
+    m = header_re.match(line)
+    if m:
+        skipping = is_mcp(m.group(1))
+    if not skipping:
+        preserved.append(line)
+
+while preserved and not preserved[-1].strip():
+    preserved.pop()
 
 def toml_value(v):
     if isinstance(v, bool):
@@ -145,12 +158,12 @@ def to_codex(name, cfg):
         out.append(("enabled", False))
     return out
 
-out = [head, "[mcp_servers]\n"]
+parts = ["\n".join(preserved), "\n\n", "[mcp_servers]\n"]
 for name, cfg in servers.items():
-    out.append(f"\n[mcp_servers.{name}]\n")
+    parts.append(f"\n[mcp_servers.{name}]\n")
     for key, val in to_codex(name, cfg):
-        out.append(f"{key} = {toml_value(val)}\n")
+        parts.append(f"{key} = {toml_value(val)}\n")
 
-pathlib.Path(dst).write_text("".join(out))
+pathlib.Path(dst).write_text("".join(parts))
 print(f"wrote {dst}")
 PY
