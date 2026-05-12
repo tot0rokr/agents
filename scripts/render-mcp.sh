@@ -101,10 +101,11 @@ echo "wrote $OPENCODE_FILE"
 
 # --- Codex: config.toml [mcp_servers.<name>] ---
 # Codex supports both stdio and HTTP natively. We strip all existing
-# `[mcp_servers]` and `[mcp_servers.*]` sections, preserve every other
-# section in its original order, and append the regenerated MCP block at
-# the end. This survives Codex CLI writing its own sections anywhere in
-# the file (e.g. [projects."<path>"] for trust settings).
+# `[mcp_servers]` and `[mcp_servers.*]` sections plus a small set of
+# ephemeral runtime sections that Codex CLI mutates on its own (e.g. the
+# NUX click counter at `[tui.model_availability_nux]`). Everything else
+# — including `[projects."<path>"]` trust settings — is preserved in
+# its original order.
 CODEX_FILE="$REPO_ROOT/codex/config.toml"
 python3 - "$SRC" "$CODEX_FILE" <<'PY'
 import json, re, sys, pathlib
@@ -113,17 +114,30 @@ src, dst = sys.argv[1], sys.argv[2]
 servers = json.loads(pathlib.Path(src).read_text()).get("servers", {})
 text = pathlib.Path(dst).read_text()
 
+# Sections to drop from the output. We replace mcp_servers with our
+# regenerated block; ephemerals are runtime state that pollutes git
+# diffs every Codex run and shouldn't live in version control.
+EPHEMERAL_SECTIONS = {
+    "tui.model_availability_nux",
+}
+
 header_re = re.compile(r'^\s*\[([^\]]+)\]\s*$')
 
-def is_mcp(section: str) -> bool:
-    return section == "mcp_servers" or section.startswith("mcp_servers.")
+def should_strip(section: str) -> bool:
+    if section == "mcp_servers" or section.startswith("mcp_servers."):
+        return True
+    if section in EPHEMERAL_SECTIONS:
+        return True
+    if any(section.startswith(e + ".") for e in EPHEMERAL_SECTIONS):
+        return True
+    return False
 
 preserved = []
 skipping = False
 for line in text.splitlines():
     m = header_re.match(line)
     if m:
-        skipping = is_mcp(m.group(1))
+        skipping = should_strip(m.group(1))
     if not skipping:
         preserved.append(line)
 
