@@ -98,7 +98,7 @@ differ), so hooks live inside each tool's native config:
 |---|---|---|---|---|
 | Skills (SKILL.md) | yes | yes | yes | yes |
 | Hooks | yes | yes | yes (plugins) | yes |
-| Persistent memory | yes | yes | via AGENTS.md only | yes |
+| Persistent memory | yes (auto-memory) | yes (config.toml) | via AGENTS.md + CLAUDE.md fallback | yes (save_memory) |
 | Sub-agents | yes | yes | yes | yes |
 | Custom slash commands | yes | yes | yes | yes (TOML format) |
 | MCP servers | yes | yes | yes | yes |
