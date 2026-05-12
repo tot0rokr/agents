@@ -46,9 +46,11 @@ codex/models_cache.json
 codex/.personality_migration
 codex/logs_*.sqlite*
 codex/state_*.sqlite*
-# codex/skills/ is Codex's bundled system skills (under .system/), separate
-# from our canonical universal/skills/. Codex manages it; we don't track it.
-codex/skills/
+# Codex's bundled system skills (plugin-creator, skill-creator, openai-docs,
+# imagegen, skill-installer) live under codex/skills/.system/. Codex manages
+# that subdirectory itself; user-added skills under codex/skills/<name>/ stay
+# tracked. Our canonical skill location is universal/skills/.
+codex/skills/.system/
 
 # --- OpenCode runtime state ---
 opencode/auth/
