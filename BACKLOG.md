@@ -13,9 +13,12 @@ priority within each section.
       `render-mcp.sh` rewritten to handle remote vs stdio per tool: Claude
       `{type:"http",url}`, Codex `url=…`, OpenCode `{type:"remote",…}`,
       Gemini `{httpUrl:…}`. End-to-end run validated.
-- [ ] `shared/subagents/` — add sub-agent definitions in the
-      claude/opencode-compatible `.md`-with-frontmatter format. Minimum
-      common fields: `name`, `description`, `tools`.
+- [x] `shared/subagents/` — added 3 sub-agents (Claude + OpenCode shared
+      via `~/.claude/agents/` and `~/.config/opencode/agents/` symlinks):
+      `code-reviewer`, `agents-harness-auditor`, `linear-triage`.
+      Frontmatter intentionally minimal (name + description only) for
+      cross-tool compat. Codex/Gemini sub-agents would need separate
+      render scripts; deferred until needed.
 - [ ] `shared/commands/` — add custom slash commands as `.md` files.
       Claude/Codex/OpenCode read them directly; run
       `scripts/render-gemini-commands.sh` to also push them into Gemini's
