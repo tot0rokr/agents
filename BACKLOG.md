@@ -54,12 +54,16 @@ Outstanding work for the unified agents harness and its companion MCP package. I
 - [x] **v0.3.0** — mutate tools: `clone`, `install`, `render`. 11
       unittest cases including a real-install-against-fake-home E2E.
       Total package coverage: 33 cases.
-- [ ] **v0.4.0** — content tools: `add_skill` / `remove_skill`,
+- [x] **v0.3.1** — pre-publish rename `harness-adapter-mcp` ->
+      `integrated-harness-kit-mcp`. Published on TestPyPI and PyPI.
+      `git-commit-workflow` skill also tightened (mandate `git status`/`git
+      diff` before staging, forbid `git add -A`) after a near-miss leak.
+- [x] **v0.4.0** — content tools: `add_skill` / `remove_skill`,
       `add_mcp_server` / `remove_mcp_server`,
       `add_command` / `remove_command`,
-      `add_subagent` / `remove_subagent`. Each `add_*` should trigger
-      the matching render where applicable. Tests should verify the
-      canonical file is written and the rendered output is regenerated.
+      `add_subagent` / `remove_subagent`. Each `add_*` triggers the
+      matching render where applicable; remove_* the inverse. 22 unittest
+      cases; total package coverage: 55 cases.
 - [ ] **v0.5.0** — maintenance tools: `update` (git pull + render +
       doctor), `audit_drift` (uncommitted change classification),
       `commit` (staged commit following `git-commit-workflow` skill),

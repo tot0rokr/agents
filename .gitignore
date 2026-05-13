@@ -2,6 +2,11 @@
 **/settings.local.json
 **/*.local.json
 
+# PyPI credentials — must NEVER end up in this repo. Belt-and-suspenders
+# alongside the canonical ~/.pypirc location.
+.pypirc
+**/.pypirc
+
 # --- Claude Code runtime state ---
 # These directories and files are written by Claude Code at runtime once
 # ~/.claude is symlinked to agents/claude. We don't track them in git.
@@ -74,6 +79,9 @@ gemini/google_accounts.json
 *.swp
 *.swo
 
-# --- Python bytecode ---
+# --- Python bytecode + build artifacts ---
 __pycache__/
 *.py[cod]
+mcp/dist/
+mcp/build/
+mcp/**/*.egg-info/

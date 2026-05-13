@@ -1,6 +1,6 @@
 [project]
 name = "integrated-harness-kit-mcp"
-version = "0.3.1"
+version = "0.4.0"
 description = "MCP server for managing the tot0rokr/agents harness (Claude Code / Codex CLI / OpenCode / Gemini CLI shared config)"
 readme = "README.md"
 license = "MIT"
