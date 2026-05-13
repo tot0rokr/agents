@@ -6,11 +6,5 @@
   },
   "hooks": {},
   "theme": "dark-daltonized",
-  "mcpServers": {
-    "linear": {
-      "type": "http",
-      "url": "https://mcp.linear.app/mcp"
-    }
-  },
   "skipAutoPermissionPrompt": true
 }

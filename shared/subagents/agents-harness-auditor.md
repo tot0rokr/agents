@@ -40,7 +40,7 @@ Then per check, only if it found something:
   <relevant excerpt>
   Fix: <exact command or file path>
 
-[WARN] render drift in claude/settings.json:
+[WARN] render drift in codex/config.toml:
   scripts/render-mcp.sh produces different content; run it to update.
 
 [WARN] BACKLOG.md item "X" no longer accurate: <reason>

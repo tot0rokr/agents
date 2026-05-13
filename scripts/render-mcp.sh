@@ -18,7 +18,15 @@
 #   }
 #
 # Targets (all overwritten in place):
-#   claude/settings.json           .mcpServers
+#   ~/.claude.json                 .mcpServers   (NOT claude/settings.json —
+#                                                  Claude Code reads MCP from
+#                                                  the home-level file, not
+#                                                  the settings.json inside
+#                                                  ~/.claude/. This script
+#                                                  patches the user's
+#                                                  ~/.claude.json in place
+#                                                  and preserves all other
+#                                                  keys.)
 #   codex/config.toml              [mcp_servers.<name>]
 #   opencode/opencode.json         .mcp
 #   gemini/settings.json           .mcpServers
@@ -75,13 +83,36 @@ def map_servers(f):
 
 SERVERS_RAW="$(jq '.servers // {}' "$SRC")"
 
-# --- Claude: settings.json .mcpServers ---
+# --- Claude: $HOME/.claude.json .mcpServers ---
+# Claude Code's MCP servers live at the home-level `~/.claude.json`, not
+# inside `~/.claude/settings.json`. settings.json carries hooks,
+# permissions, and theme; mcpServers there is silently ignored. Patch the
+# real file in place, preserving every other key (Claude Code stores 28+ KB
+# of runtime state there — onboarding flags, project history, caches).
+CLAUDE_HOME_FILE="${HOME}/.claude.json"
+if [[ -f "$CLAUDE_HOME_FILE" ]]; then
+  tmp="$(mktemp)"
+  jq --argjson s "$SERVERS_RAW" "$JQ_LIB"'
+    .mcpServers = ($s | map_servers(to_claude))
+  ' "$CLAUDE_HOME_FILE" > "$tmp" && mv "$tmp" "$CLAUDE_HOME_FILE"
+  chmod 600 "$CLAUDE_HOME_FILE"
+  echo "patched $CLAUDE_HOME_FILE (.mcpServers updated; other keys preserved)"
+else
+  jq -n --argjson s "$SERVERS_RAW" "$JQ_LIB"'
+    { mcpServers: ($s | map_servers(to_claude)) }
+  ' > "$CLAUDE_HOME_FILE"
+  chmod 600 "$CLAUDE_HOME_FILE"
+  echo "created $CLAUDE_HOME_FILE"
+fi
+
+# Cleanup: drop any stale `.mcpServers` key inside claude/settings.json so
+# the version-controlled file doesn't pretend to define MCP servers.
 CLAUDE_FILE="$REPO_ROOT/claude/settings.json"
-tmp="$(mktemp)"
-jq --argjson s "$SERVERS_RAW" "$JQ_LIB"'
-  .mcpServers = ($s | map_servers(to_claude))
-' "$CLAUDE_FILE" > "$tmp" && mv "$tmp" "$CLAUDE_FILE"
-echo "wrote $CLAUDE_FILE"
+if [[ -f "$CLAUDE_FILE" ]] && jq -e '.mcpServers' "$CLAUDE_FILE" >/dev/null 2>&1; then
+  tmp="$(mktemp)"
+  jq 'del(.mcpServers)' "$CLAUDE_FILE" > "$tmp" && mv "$tmp" "$CLAUDE_FILE"
+  echo "scrubbed stale .mcpServers from $CLAUDE_FILE"
+fi
 
 # --- Gemini: settings.json .mcpServers ---
 GEMINI_FILE="$REPO_ROOT/gemini/settings.json"

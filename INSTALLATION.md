@@ -86,7 +86,7 @@ Expected last line: `doctor: all checks passed`. If anything else, report it to 
 
 Use **only** the row for the CLI you detected in Step 0. Use your write/edit tool (not heredoc-echo) and merge with existing config — preserve all current keys.
 
-**Claude Code** (`~/.claude/settings.json`): set or extend `mcpServers`:
+**Claude Code** (`~/.claude.json` — **NOT** `~/.claude/settings.json`; Claude Code reads MCP servers from the home-level file). The file is large (~30 KB of runtime state); use a jq merge or a careful edit, **preserve all existing keys**. Set or extend `mcpServers`:
 
 ```json
 {
@@ -98,6 +98,8 @@ Use **only** the row for the CLI you detected in Step 0. Use your write/edit too
   }
 }
 ```
+
+If `~/agents/scripts/render-mcp.sh` ran during install, this is already patched for you — verify with `jq '.mcpServers' ~/.claude.json`. To add by hand: `jq '.mcpServers += {"integrated-harness-kit":{"command":"uvx","args":["integrated-harness-kit-mcp"]}}' ~/.claude.json > /tmp/.claude.json.new && mv /tmp/.claude.json.new ~/.claude.json && chmod 600 ~/.claude.json`.
 
 **Codex CLI** (`~/.codex/config.toml`): append (don't replace existing tables):
 
