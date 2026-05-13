@@ -73,3 +73,7 @@ gemini/google_accounts.json
 .DS_Store
 *.swp
 *.swo
+
+# --- Python bytecode ---
+__pycache__/
+*.py[cod]
