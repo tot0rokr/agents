@@ -134,7 +134,7 @@ args = ["harness-adapter-mcp"]
 }
 ```
 
-> **Note on v0.1** — the `harness-adapter-mcp` Python package is **not yet on PyPI**. This step writes the config so the wiring is ready for v0.2. Until then, the entry will resolve to "package not found" if the CLI tries to start it. That's expected and harmless. Once v0.2 ships, restarting the CLI will pick it up automatically.
+> **Note** — the `harness-adapter-mcp` package ships from v0.2.0 onward. If `uvx` can't resolve it, the maintainer hasn't published this tag to PyPI yet; clone the repo and use `uvx --from /path/to/agents/mcp harness-adapter-mcp` as a local fallback until then.
 
 ### Step 6 — Tell the user what happened
 
