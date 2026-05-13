@@ -27,6 +27,7 @@ claude/shell-snapshots/
 claude/tasks/
 claude/telemetry/
 claude/plugins/marketplaces/
+claude/stats-cache.json
 
 # Per-project runtime state, except the symlink to shared/memory.
 # install.sh creates ~/.claude/projects/-home-junho/memory as a symlink to

@@ -72,17 +72,30 @@ Outstanding work for the unified agents harness and its companion MCP package. I
 
 ## Publishing & CI
 
-- [ ] **PyPI publish** of `integrated-harness-kit-mcp`. Choose one:
-        (a) one-shot: `cd mcp/ && python3 -m build && twine upload dist/*`
-            after creating a PyPI account + API token;
-        (b) GitHub Actions: workflow that builds and uploads on tag
-            push (uses repository secret `PYPI_API_TOKEN`).
-      Until this lands, `uvx integrated-harness-kit-mcp` won't resolve and the
-      INSTALLATION.md fallback (`uvx --from /path/to/agents/mcp`) is the
-      only way to run the MCP.
+- [x] **PyPI account + tokens** — `tot0rokr` account on both pypi.org and
+      test.pypi.org, with 2FA and an `agents-publish` API token. `.pypirc`
+      configured locally for both repositories.
+- [x] **`v0.3.1` published** — wheel + sdist on
+      https://pypi.org/project/integrated-harness-kit-mcp/0.3.1/ and on
+      TestPyPI. `uvx integrated-harness-kit-mcp` resolves end-to-end.
+- [ ] **`v0.4.0` publish** — wheel + sdist built and `twine check`ed.
+      TestPyPI and PyPI upload still pending (see `mcp/dist/`). Needs
+      Docker E2E verification (below) before going public.
+- [ ] **Docker fresh-env E2E test** — `test/Dockerfile` runs a clean
+      Ubuntu + python3 + git + uv container so the maintainer can `exec`
+      in and replay `INSTALLATION.md` step-by-step. Verifies the bootstrap
+      story against a machine that has *never* seen this repo.
+- [ ] **`INSTALLATION.md` live walkthrough** — once Docker E2E is wired,
+      run the doc end-to-end exactly as a fresh user would: paste the
+      file to a CLI agent inside the container, prompt
+      "이대로 설치해줘", confirm the agent reaches doctor: PASS without
+      manual intervention.
 - [ ] **GitHub Actions CI** that runs `python3 scripts/test_install.py`
       and `python3 -m unittest discover -s mcp/tests` on PR. Optional
-      matrix over Python 3.10/3.11/3.12.
+      matrix over Python 3.10/3.11/3.12. Once green, extend with a
+      `pypi-publish` workflow that builds + uploads on tag push (uses
+      repository secret `PYPI_API_TOKEN`) so we stop hand-rolling
+      `twine upload`.
 - [ ] **CHANGELOG.md** — bump versions there alongside tags. Currently
       the release narrative lives only in commit messages.
 
@@ -95,6 +108,11 @@ Outstanding work for the unified agents harness and its companion MCP package. I
 - [ ] `~/.claude.bak.20260512-183533` and
       `~/.config/opencode.bak.20260512-183533` — remove after ~1 week
       of stable use (currently retained as rollback insurance).
+- [ ] `~/.pypirc` has the original, now-revoked PyPI token in its
+      `[pypi]` section; the working `agents-publish` token is supplied
+      via env var per session. Replace the `[pypi]` password with the
+      live token (chmod 600 verified). Cleared by the maintainer's
+      explicit choice for now ("key는 그대로 둘래").
 - [ ] `doctor.sh` improvement: validate every
       `universal/skills/*/SKILL.md` has a `name:` matching its directory
       name. Catches the most common Claude-discovery mistake.
