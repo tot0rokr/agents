@@ -42,13 +42,13 @@ Outstanding work for the unified agents harness and its companion MCP package. I
       (Codex/OpenCode/Gemini) writes to `shared/memory/`, confirm Claude
       auto-memory sees the new entry.
 
-## harness-adapter-mcp roadmap
+## integrated-harness-kit-mcp roadmap
 
 - [x] **v0.1.0** — `scripts/install.py` (Python rewrite of install.sh
       with operation-level rollback), `INSTALLATION.md` (agent-readable
       bootstrap recipe), 8 unittest cases.
 - [x] **v0.2.0** — `mcp/` package (publishable PyPI module
-      `harness-adapter-mcp`). Read-only tools: `harness_status`,
+      `integrated-harness-kit-mcp`). Read-only tools: `harness_status`,
       `doctor`, `list_skills`, `list_mcp_servers`, `list_commands`,
       `list_subagents`. 14 unittest cases.
 - [x] **v0.3.0** — mutate tools: `clone`, `install`, `render`. 11
@@ -68,12 +68,12 @@ Outstanding work for the unified agents harness and its companion MCP package. I
 
 ## Publishing & CI
 
-- [ ] **PyPI publish** of `harness-adapter-mcp`. Choose one:
+- [ ] **PyPI publish** of `integrated-harness-kit-mcp`. Choose one:
         (a) one-shot: `cd mcp/ && python3 -m build && twine upload dist/*`
             after creating a PyPI account + API token;
         (b) GitHub Actions: workflow that builds and uploads on tag
             push (uses repository secret `PYPI_API_TOKEN`).
-      Until this lands, `uvx harness-adapter-mcp` won't resolve and the
+      Until this lands, `uvx integrated-harness-kit-mcp` won't resolve and the
       INSTALLATION.md fallback (`uvx --from /path/to/agents/mcp`) is the
       only way to run the MCP.
 - [ ] **GitHub Actions CI** that runs `python3 scripts/test_install.py`

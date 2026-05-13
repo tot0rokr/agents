@@ -6,7 +6,7 @@ import subprocess
 import unittest
 
 from tests._helpers import TmpRepoTestCase
-from harness_adapter_mcp.tools.clone import clone
+from integrated_harness_kit_mcp.tools.clone import clone
 
 
 def _git_available() -> bool:

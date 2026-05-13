@@ -6,7 +6,7 @@ import os
 import unittest
 
 from tests._helpers import TmpRepoTestCase, install_doctor_stub
-from harness_adapter_mcp.tools.doctor import doctor
+from integrated_harness_kit_mcp.tools.doctor import doctor
 
 
 class DoctorTestCase(TmpRepoTestCase):

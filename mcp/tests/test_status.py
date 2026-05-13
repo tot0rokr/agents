@@ -6,7 +6,7 @@ import os
 import unittest
 
 from tests._helpers import TmpRepoTestCase
-from harness_adapter_mcp.tools.status import harness_status
+from integrated_harness_kit_mcp.tools.status import harness_status
 
 
 _LINK_PATHS = [

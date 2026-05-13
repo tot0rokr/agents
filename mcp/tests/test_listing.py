@@ -11,7 +11,7 @@ from tests._helpers import (
     write_skill,
     write_subagent,
 )
-from harness_adapter_mcp.tools.listing import (
+from integrated_harness_kit_mcp.tools.listing import (
     list_commands,
     list_mcp_servers,
     list_skills,

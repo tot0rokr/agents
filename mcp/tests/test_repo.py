@@ -6,7 +6,7 @@ import os
 import unittest
 
 from tests._helpers import TmpRepoTestCase, make_fake_repo
-from harness_adapter_mcp.repo import find_repo
+from integrated_harness_kit_mcp.repo import find_repo
 
 
 class FindRepoTestCase(TmpRepoTestCase):

@@ -1,4 +1,4 @@
-# harness-adapter-mcp
+# integrated-harness-kit-mcp
 
 An MCP server that exposes diagnostic and (in later versions) management
 tools for the [`tot0rokr/agents`](https://github.com/tot0rokr/agents)
@@ -8,7 +8,7 @@ CLI**, **OpenCode**, and **Gemini CLI**.
 ## Install
 
 ```bash
-uvx harness-adapter-mcp
+uvx integrated-harness-kit-mcp
 ```
 
 That command runs the server on stdio; pair it with a CLI agent's MCP
@@ -53,7 +53,7 @@ python3 -m venv .venv
 .venv/bin/python -m unittest discover -s tests -v
 ```
 
-Tools live in `src/harness_adapter_mcp/tools/` as plain functions, so the
+Tools live in `src/integrated_harness_kit_mcp/tools/` as plain functions, so the
 unit tests don't import `mcp` and don't depend on FastMCP behaviour.
 
 ## License

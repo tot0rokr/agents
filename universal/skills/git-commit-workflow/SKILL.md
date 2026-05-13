@@ -5,14 +5,41 @@ description: Use this skill whenever about to run git commit, compose a commit m
 
 # Git Commit Workflow
 
-## Commit only what this agent changed
+## Stage only what THIS work changed
 
-A git repository often contains modifications from the user or previous agent sessions that are unrelated to the current task. Sweeping those into a commit produces misleading history.
+A working tree often contains modifications from earlier sessions, the user's own hand-edits, or other agents. Sweeping everything in produces commits that mix unrelated work and — worse — can publish files the user deliberately kept out of git (memory snippets containing secrets, in-progress drafts, local-only configs). The verification procedure below is mandatory before every `git add`.
 
-Before committing:
-1. Run `git status` to see every modified, staged, untracked, and deleted file in the working tree.
-2. Identify which files this agent actually touched in the current session. If unsure, cross-check against the conversation.
-3. Stage *only* those files explicitly by path. Avoid `git add .` and `git add -A` unless every change in the tree was made by this agent.
+### Required procedure before staging
+
+1. **Inventory the current state.** Run these in order and read every line of every output:
+
+   ```bash
+   git status --short
+   git diff
+   git diff --staged   # only if anything is already staged
+   ```
+
+   `git status --short` lists every modified, staged, untracked, and deleted path. The diffs show the actual content changes. You need all three to know what's there.
+
+2. **Classify each entry.** For every path in `git status --short`, decide which bucket it belongs to:
+   - **This work** — a file this agent changed in service of the current task. Goes into the commit.
+   - **Pre-existing / unrelated** — modified before this session, or by another tool (e.g. a plugin migrated its own config). Stays out.
+   - **Deliberately uncommitted** — the user said "don't commit this", or it's known working-tree-only state (e.g. memory files with PII, `*.local.json`). Stays out.
+   - **Unsure** — stop and ask the user before staging. Don't guess.
+
+3. **Stage by explicit path.** Always:
+
+   ```bash
+   git add path/to/specific-file.py path/to/other-file.md
+   ```
+
+   **Forbidden — no exceptions**: `git add -A`, `git add .`, `git add -u`, `git add :/`, or any glob that could absorb unrelated changes. If the file list is long, list every path on its own line; the verbosity is the point.
+
+4. **Verify staging matches intent.** After staging, run `git status --short` once more and `git diff --staged` again. Compare what's staged to your bucket-1 list from step 2. If anything else snuck in, `git restore --staged <path>` it and re-verify.
+
+### Failure mode this rule blocks
+
+A typical violation: the agent is doing a tree-wide rename or refactor and reaches for `git add -A` so the renames register correctly. That command also stages every other modified file in the tree, including any memory or note file the user is keeping working-tree-only. Once committed and pushed (especially to a public repo), the leaked file is in history — force-push only partially scrubs it. **Stage the rename explicitly**: list the old and new paths, the imports, the config, the tests. Verbose is correct.
 
 ## Write the message from the diff, not from memory
 

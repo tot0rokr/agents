@@ -4,7 +4,7 @@ This file is meant to be handed to an AI coding agent. Paste it into a fresh ses
 
 > 이대로 설치해줘
 
-The agent will clone the repo, run the installer, verify it, and wire up the `harness-adapter-mcp` entry in your CLI's own config — you don't need to touch any `settings.json` by hand.
+The agent will clone the repo, run the installer, verify it, and wire up the `integrated-harness-kit-mcp` entry in your CLI's own config — you don't need to touch any `settings.json` by hand.
 
 If you're a human and want to do it manually instead, just run:
 
@@ -82,7 +82,7 @@ bash ~/agents/scripts/doctor.sh
 
 Expected last line: `doctor: all checks passed`. If anything else, report it to the user and stop.
 
-### Step 5 — Add the `harness-adapter-mcp` entry to your host CLI's config
+### Step 5 — Add the `integrated-harness-kit-mcp` entry to your host CLI's config
 
 Use **only** the row for the CLI you detected in Step 0. Use your write/edit tool (not heredoc-echo) and merge with existing config — preserve all current keys.
 
@@ -91,9 +91,9 @@ Use **only** the row for the CLI you detected in Step 0. Use your write/edit too
 ```json
 {
   "mcpServers": {
-    "harness-adapter": {
+    "integrated-harness-kit": {
       "command": "uvx",
-      "args": ["harness-adapter-mcp"]
+      "args": ["integrated-harness-kit-mcp"]
     }
   }
 }
@@ -102,9 +102,9 @@ Use **only** the row for the CLI you detected in Step 0. Use your write/edit too
 **Codex CLI** (`~/.codex/config.toml`): append (don't replace existing tables):
 
 ```toml
-[mcp_servers.harness-adapter]
+[mcp_servers.integrated-harness-kit]
 command = "uvx"
-args = ["harness-adapter-mcp"]
+args = ["integrated-harness-kit-mcp"]
 ```
 
 **OpenCode** (`~/.config/opencode/opencode.json`): set or extend the `mcp` key:
@@ -112,9 +112,9 @@ args = ["harness-adapter-mcp"]
 ```json
 {
   "mcp": {
-    "harness-adapter": {
+    "integrated-harness-kit": {
       "type": "local",
-      "command": ["uvx", "harness-adapter-mcp"],
+      "command": ["uvx", "integrated-harness-kit-mcp"],
       "enabled": true
     }
   }
@@ -126,15 +126,15 @@ args = ["harness-adapter-mcp"]
 ```json
 {
   "mcpServers": {
-    "harness-adapter": {
+    "integrated-harness-kit": {
       "command": "uvx",
-      "args": ["harness-adapter-mcp"]
+      "args": ["integrated-harness-kit-mcp"]
     }
   }
 }
 ```
 
-> **Note** — the `harness-adapter-mcp` package ships from v0.2.0 onward. If `uvx` can't resolve it, the maintainer hasn't published this tag to PyPI yet; clone the repo and use `uvx --from /path/to/agents/mcp harness-adapter-mcp` as a local fallback until then.
+> **Note** — `integrated-harness-kit-mcp` is the PyPI distribution of the MCP server. If `uvx` reports "package not found", the latest tag may not have been pushed to PyPI yet; clone the repo and use `uvx --from /path/to/agents/mcp integrated-harness-kit-mcp` as a local fallback.
 
 ### Step 6 — Tell the user what happened
 
@@ -142,7 +142,7 @@ In your final message to the user, include:
 
 1. **Status**: `installed` or `already-installed (only step 5 ran)`.
 2. **Backups**: list any `*.bak.<timestamp>` directories created. Mention they're rollback insurance and can be removed after ~1 week of stable use.
-3. **Restart**: tell them to restart the CLI to pick up the new MCP entry, and that `harness-adapter-mcp` will resolve once v0.2 is published.
+3. **Restart**: tell them to restart the CLI to pick up the new MCP entry. If `uvx` reports "package not found", the maintainer hasn't pushed the latest tag to PyPI; use the local-fallback snippet from the Note above.
 4. **Uninstall hint**: to revert, manually restore the `.bak.*` directories and remove the symlinks. (A clean `--uninstall` flow lands later.)
 
 ### Error handling rules
@@ -157,5 +157,4 @@ In your final message to the user, include:
 
 - Don't modify any file under `~/agents` other than the one config file from Step 5.
 - Don't run `install.sh` separately — it just shells out to `install.py`.
-- Don't try to install `harness-adapter-mcp` from PyPI in v0.1 — the package isn't there yet.
 - Don't ask the user "is it okay if I clone the repo?" — they pasted this document, that *is* the consent. But do report what you did after each step.

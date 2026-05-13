@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 from tests._helpers import TmpRepoTestCase
-from harness_adapter_mcp.tools.install_tool import install
+from integrated_harness_kit_mcp.tools.install_tool import install
 
 
 _REAL_INSTALL_PY = (

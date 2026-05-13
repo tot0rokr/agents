@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 
 from tests._helpers import TmpRepoTestCase
-from harness_adapter_mcp.tools.render import render
+from integrated_harness_kit_mcp.tools.render import render
 
 
 def _install_render_stub(repo, name, body=None):
