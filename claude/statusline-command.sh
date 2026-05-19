@@ -6,23 +6,34 @@ input=$(cat)
 
 # ── palette (256-color, tmux-safe) ──────────────────────────────────
 CRUST_FG=$'\033[38;5;232m'
-RED_BG=$'\033[48;5;211m'      RED_FG=$'\033[38;5;211m'
-PEACH_BG=$'\033[48;5;216m'    PEACH_FG=$'\033[38;5;216m'
-YELLOW_BG=$'\033[48;5;222m'   YELLOW_FG=$'\033[38;5;222m'
-GREEN_BG=$'\033[48;5;151m'    GREEN_FG=$'\033[38;5;151m'
-TEAL_BG=$'\033[48;5;116m'     TEAL_FG=$'\033[38;5;116m'
-SAPPHIRE_BG=$'\033[48;5;117m' SAPPHIRE_FG=$'\033[38;5;117m'
-# Per-segment 2-tone gauge fills: empty (slightly darker than section), filled (more darker).
-GREEN_EMPTY_BG=$'\033[48;5;108m'      # #87af87 sage
-GREEN_FILLED_BG=$'\033[48;5;65m'      # #5f875f forest
-YELLOW_EMPTY_BG=$'\033[48;5;178m'     # #d7af00 gold
-YELLOW_FILLED_BG=$'\033[48;5;136m'    # #af8700 dark gold
-RED_EMPTY_BG=$'\033[48;5;174m'        # #d78787 salmon
-RED_FILLED_BG=$'\033[48;5;131m'       # #af5f5f rose brown
-SAPPHIRE_EMPTY_BG=$'\033[48;5;74m'    # #5fafd7 sky
-SAPPHIRE_FILLED_BG=$'\033[48;5;67m'   # #5f87af slate
-# Muted fg for "disabled" icons on sapphire bg (same hue, darker).
-DIM_FG=$'\033[38;5;67m'
+LIGHT_FG=$'\033[38;5;255m'                 # cream-white text for dark sections
+ACCENT_FG=$'\033[38;5;215m'                # gold POINT color (≈ #FFC570)
+# ── Palette (256-color, tmux-safe approximations) ───────────────────
+# Section bg, dark navy → mid navy → slate → sky → beige → warm beige
+NAVY_BG=$'\033[48;5;17m'         NAVY_FG=$'\033[38;5;17m'         # ≈ #00005f  ≈ #1A3263
+SLATEBLUE_BG=$'\033[48;5;67m'    SLATEBLUE_FG=$'\033[38;5;67m'    # ≈ #5f87af  ≈ #547792
+SLATE_BG=$'\033[48;5;109m'       SLATE_FG=$'\033[38;5;109m'       # ≈ #87afaf  ≈ #89A8B2
+SKY_BG=$'\033[48;5;152m'         SKY_FG=$'\033[38;5;152m'         # ≈ #afd7d7  ≈ #B3C8CF
+BEIGE_BG=$'\033[48;5;254m'       BEIGE_FG=$'\033[38;5;254m'       # ≈ #e4e4e4  ≈ #E5E1DA
+WARM_BG=$'\033[48;5;223m'        WARM_FG=$'\033[38;5;223m'        # ≈ #ffd7af  ≈ #EFD2B0
+GOLD_BG=$'\033[48;5;215m'        GOLD_FG=$'\033[38;5;215m'        # ≈ #ffaf5f  ≈ #FFC570 (POINT)
+# Section assignments
+RED_BG=$NAVY_BG          RED_FG=$NAVY_FG              # user@host (deepest navy)
+PEACH_BG=$SLATEBLUE_BG   PEACH_FG=$SLATEBLUE_FG       # cwd (mid navy)
+YELLOW_BG=$SLATE_BG      YELLOW_FG=$SLATE_FG          # git branch
+SAPPHIRE_BG=$SKY_BG      SAPPHIRE_FG=$SKY_FG          # model
+GREEN_BG=$BEIGE_BG       GREEN_FG=$BEIGE_FG           # ctx / 5h / 7d grouped
+TEAL_BG=$WARM_BG         TEAL_FG=$WARM_FG             # time + edits
+# Gauge fills — muted (low/med), gold accent for high alerts.
+LOW_EMPTY_BG=$'\033[48;5;152m'    LOW_FILLED_BG=$'\033[48;5;109m'    # slate family
+MED_EMPTY_BG=$'\033[48;5;187m'    MED_FILLED_BG=$'\033[48;5;144m'    # dusty olive
+HIGH_EMPTY_BG=$'\033[48;5;223m'   HIGH_FILLED_BG=$'\033[48;5;215m'   # warm beige + gold POINT
+GREEN_EMPTY_BG=$LOW_EMPTY_BG     GREEN_FILLED_BG=$LOW_FILLED_BG
+YELLOW_EMPTY_BG=$MED_EMPTY_BG    YELLOW_FILLED_BG=$MED_FILLED_BG
+RED_EMPTY_BG=$HIGH_EMPTY_BG      RED_FILLED_BG=$HIGH_FILLED_BG
+SAPPHIRE_EMPTY_BG=$'\033[48;5;109m'   SAPPHIRE_FILLED_BG=$'\033[48;5;67m'  # effort: slate/navy
+# Dim fg for disabled icons on sky (model) section — slate stands out as muted
+DIM_FG=$SLATE_FG
 RESET=$'\033[0m'
 BOLD=$'\033[1m'
 DIM=$'\033[2m'
@@ -140,9 +151,9 @@ fmt_dur() {
     fi
 }
 
-# powerline segment helpers
-seg_first() { printf '%s %s %s' "$1$CRUST_FG$BOLD" "$2" "$RESET"; }
-seg()       { printf '%s%s%s%s%s %s %s' "$2" "$1" "$ARROW" "$RESET" "$1$CRUST_FG$BOLD" "$3" "$RESET"; }
+# powerline segment helpers. Optional 4th/3rd arg overrides text fg (default CRUST).
+seg_first() { local tfg="${3:-$CRUST_FG}"; printf '%s %s %s' "$1$tfg$BOLD" "$2" "$RESET"; }
+seg()       { local tfg="${4:-$CRUST_FG}"; printf '%s%s%s%s%s %s %s' "$2" "$1" "$ARROW" "$RESET" "$1$tfg$BOLD" "$3" "$RESET"; }
 seg_close() { printf '%s%s%s' "$1" "$ARROW" "$RESET"; }
 
 # ── data extraction ─────────────────────────────────────────────────
@@ -182,16 +193,16 @@ lrem=$(jq -r '.cost.total_lines_removed // 0' <<<"$input")
 # ── model segment content: model · ⚡flag · 󰧑flag · 󰓅gauge ──────────
 build_model_content() {
     local c="󰚩 ${model}  "
-    # fast — always filled bolt; fg color shows on/off
+    # fast — always filled bolt; gold(active) vs slate(disabled)
     if [ "$fast" = "true" ]; then
-        c+="󱐋"
+        c+="${ACCENT_FG}󱐋${CRUST_FG}"
     else
         c+="${DIM_FG}󱐋${CRUST_FG}"
     fi
     c+="  "
-    # thinking — same glyph; fg color shows on/off
+    # thinking — gold(active) vs slate(disabled)
     if [ "$think" = "true" ]; then
-        c+="󰧑"
+        c+="${ACCENT_FG}󰧑${CRUST_FG}"
     else
         c+="${DIM_FG}󰧑${CRUST_FG}"
     fi
@@ -206,11 +217,11 @@ build_model_content() {
 # ── compose powerline ───────────────────────────────────────────────
 l=""; prev=""
 
-# user@host
-l+=$(seg_first "$RED_BG" " ${user}@${host}"); prev=$RED_FG
+# user@host (dark navy bg → light text)
+l+=$(seg_first "$RED_BG" " ${user}@${host}" "$LIGHT_FG"); prev=$RED_FG
 
-# cwd
-l+=$(seg "$PEACH_BG" "$prev" " ${cwd_short}"); prev=$PEACH_FG
+# cwd (mid navy bg → light text)
+l+=$(seg "$PEACH_BG" "$prev" " ${cwd_short}" "$LIGHT_FG"); prev=$PEACH_FG
 
 # git branch (optional)
 if [ -n "$branch" ]; then
