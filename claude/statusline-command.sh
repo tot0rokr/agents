@@ -89,18 +89,19 @@ gauge() {
     printf '%s' "$out"
 }
 
-# Sets globals GRADE_BG / GRADE_FG / GRADE_EMPTY_BG / GRADE_FILLED_BG from pct.
+# Section bg/fg always stay green (neutral container); only gauge fill colors
+# (GRADE_EMPTY_BG / GRADE_FILLED_BG) vary by percentage so the warning shows
+# inside the gauge instead of flooding the whole segment.
 grade() {
     local p="$1"
+    GRADE_BG=$GREEN_BG
+    GRADE_FG=$GREEN_FG
     if   [ "$p" -lt 60 ]; then
-        GRADE_BG=$GREEN_BG;  GRADE_FG=$GREEN_FG
-        GRADE_EMPTY_BG=$GREEN_EMPTY_BG; GRADE_FILLED_BG=$GREEN_FILLED_BG
+        GRADE_EMPTY_BG=$GREEN_EMPTY_BG;  GRADE_FILLED_BG=$GREEN_FILLED_BG
     elif [ "$p" -lt 85 ]; then
-        GRADE_BG=$YELLOW_BG; GRADE_FG=$YELLOW_FG
         GRADE_EMPTY_BG=$YELLOW_EMPTY_BG; GRADE_FILLED_BG=$YELLOW_FILLED_BG
     else
-        GRADE_BG=$RED_BG;    GRADE_FG=$RED_FG
-        GRADE_EMPTY_BG=$RED_EMPTY_BG; GRADE_FILLED_BG=$RED_FILLED_BG
+        GRADE_EMPTY_BG=$RED_EMPTY_BG;    GRADE_FILLED_BG=$RED_FILLED_BG
     fi
 }
 
@@ -221,13 +222,17 @@ if [ -n "$model" ]; then
     l+=$(seg "$SAPPHIRE_BG" "$prev" "$(build_model_content)"); prev=$SAPPHIRE_FG
 fi
 
-# ctx (color-graded, bg-colored gauge with % overlay)
+# ctx · 5h · 7d — all "grade" segments grouped without arrows between them.
+# Only the first one gets a leading arrow (from the previous non-grade segment).
+prev_was_grade=false
+
+# ctx
 if [ -n "$ctx_int" ]; then
     grade "$ctx_int"
     g=$(gauge "$ctx_int" 9 "$GRADE_FILLED_BG" "$GRADE_EMPTY_BG")
-    # append segment-style restore so trailing pad-space inside seg() keeps grade bg
     content="󰍛 ${g}${GRADE_BG}${CRUST_FG}${BOLD}"
     l+=$(seg "$GRADE_BG" "$prev" "$content"); prev=$GRADE_FG
+    prev_was_grade=true
 fi
 
 # 5h limit
@@ -235,7 +240,13 @@ if [ -n "$r5_int" ]; then
     grade "$r5_int"
     g=$(gauge "$r5_int" 7 "$GRADE_FILLED_BG" "$GRADE_EMPTY_BG")
     content="󰔛 ${g}${GRADE_BG}${CRUST_FG}${BOLD}"
-    l+=$(seg "$GRADE_BG" "$prev" "$content"); prev=$GRADE_FG
+    if $prev_was_grade; then
+        l+=$(seg_first "$GRADE_BG" "$content")
+    else
+        l+=$(seg "$GRADE_BG" "$prev" "$content")
+    fi
+    prev=$GRADE_FG
+    prev_was_grade=true
 fi
 
 # 7d limit
@@ -243,7 +254,13 @@ if [ -n "$r7_int" ]; then
     grade "$r7_int"
     g=$(gauge "$r7_int" 7 "$GRADE_FILLED_BG" "$GRADE_EMPTY_BG")
     content="󰃭 ${g}${GRADE_BG}${CRUST_FG}${BOLD}"
-    l+=$(seg "$GRADE_BG" "$prev" "$content"); prev=$GRADE_FG
+    if $prev_was_grade; then
+        l+=$(seg_first "$GRADE_BG" "$content")
+    else
+        l+=$(seg "$GRADE_BG" "$prev" "$content")
+    fi
+    prev=$GRADE_FG
+    prev_was_grade=true
 fi
 
 # duration + edits (teal)
