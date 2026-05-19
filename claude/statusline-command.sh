@@ -7,24 +7,24 @@ input=$(cat)
 # ── palette (256-color, tmux-safe) ──────────────────────────────────
 CRUST_FG=$'\033[38;5;232m'
 LIGHT_FG=$'\033[38;5;255m'                 # cream-white text for dark sections
-ACCENT_FG=$'\033[38;5;215m'                # gold POINT color (≈ #FFC570)
+ACCENT_FG=$'\033[38;5;215m'                # gold (unused as fg now; kept for completeness)
 # ── Palette (256-color, tmux-safe approximations) ───────────────────
-# Section bg, dark navy → mid navy → slate → sky → beige → warm beige
+# Section bg, dark navy → darker navy → teal → mint → beige → pale yellow
 NAVY_BG=$'\033[48;5;17m'         NAVY_FG=$'\033[38;5;17m'         # ≈ #00005f  ≈ #1A3263
-SLATEBLUE_BG=$'\033[48;5;67m'    SLATEBLUE_FG=$'\033[38;5;67m'    # ≈ #5f87af  ≈ #547792
-SLATE_BG=$'\033[48;5;109m'       SLATE_FG=$'\033[38;5;109m'       # ≈ #87afaf  ≈ #89A8B2
-SKY_BG=$'\033[48;5;152m'         SKY_FG=$'\033[38;5;152m'         # ≈ #afd7d7  ≈ #B3C8CF
+NAVY2_BG=$'\033[48;5;24m'        NAVY2_FG=$'\033[38;5;24m'        # ≈ #005f87  ≈ #205781
+TEAL_HUE_BG=$'\033[48;5;73m'     TEAL_HUE_FG=$'\033[38;5;73m'     # ≈ #5fafaf  ≈ #4F959D
+MINT_BG=$'\033[48;5;151m'        MINT_FG=$'\033[38;5;151m'        # ≈ #afd7af  ≈ #98D2C0
 BEIGE_BG=$'\033[48;5;254m'       BEIGE_FG=$'\033[38;5;254m'       # ≈ #e4e4e4  ≈ #E5E1DA
-WARM_BG=$'\033[48;5;223m'        WARM_FG=$'\033[38;5;223m'        # ≈ #ffd7af  ≈ #EFD2B0
-GOLD_BG=$'\033[48;5;215m'        GOLD_FG=$'\033[38;5;215m'        # ≈ #ffaf5f  ≈ #FFC570 (POINT)
+PALEYEL_BG=$'\033[48;5;230m'     PALEYEL_FG=$'\033[38;5;230m'     # ≈ #ffffd7  ≈ #F6F8D5
+GOLD_BG=$'\033[48;5;215m'        GOLD_FG=$'\033[38;5;215m'        # ≈ #ffaf5f  ≈ #FFC570 (POINT, bg only)
 # Section assignments
-RED_BG=$NAVY_BG          RED_FG=$NAVY_FG              # user@host (deepest navy)
-PEACH_BG=$SLATEBLUE_BG   PEACH_FG=$SLATEBLUE_FG       # cwd (mid navy)
-YELLOW_BG=$SLATE_BG      YELLOW_FG=$SLATE_FG          # git branch
-SAPPHIRE_BG=$SKY_BG      SAPPHIRE_FG=$SKY_FG          # model
+RED_BG=$NAVY_BG          RED_FG=$NAVY_FG              # user@host
+PEACH_BG=$NAVY2_BG       PEACH_FG=$NAVY2_FG           # cwd
+YELLOW_BG=$TEAL_HUE_BG   YELLOW_FG=$TEAL_HUE_FG       # git branch
+SAPPHIRE_BG=$MINT_BG     SAPPHIRE_FG=$MINT_FG         # model
 GREEN_BG=$BEIGE_BG       GREEN_FG=$BEIGE_FG           # ctx / 5h / 7d grouped
-TEAL_BG=$WARM_BG         TEAL_FG=$WARM_FG             # time + edits
-# Gauge fills — muted (low/med), gold accent for high alerts.
+TEAL_BG=$PALEYEL_BG      TEAL_FG=$PALEYEL_FG          # time + edits
+# Gauge fills — muted (low/med), gold for high alerts (still bg-only).
 LOW_EMPTY_BG=$'\033[48;5;152m'    LOW_FILLED_BG=$'\033[48;5;109m'    # slate family
 MED_EMPTY_BG=$'\033[48;5;187m'    MED_FILLED_BG=$'\033[48;5;144m'    # dusty olive
 HIGH_EMPTY_BG=$'\033[48;5;223m'   HIGH_FILLED_BG=$'\033[48;5;215m'   # warm beige + gold POINT
@@ -32,8 +32,9 @@ GREEN_EMPTY_BG=$LOW_EMPTY_BG     GREEN_FILLED_BG=$LOW_FILLED_BG
 YELLOW_EMPTY_BG=$MED_EMPTY_BG    YELLOW_FILLED_BG=$MED_FILLED_BG
 RED_EMPTY_BG=$HIGH_EMPTY_BG      RED_FILLED_BG=$HIGH_FILLED_BG
 SAPPHIRE_EMPTY_BG=$'\033[48;5;109m'   SAPPHIRE_FILLED_BG=$'\033[48;5;67m'  # effort: slate/navy
-# Dim fg for disabled icons on sky (model) section — slate stands out as muted
-DIM_FG=$SLATE_FG
+# Disabled-icon fg: medium gray; Active-icon fg: deep navy (#1A3263).
+DIM_FG=$'\033[38;5;245m'
+ON_FG=$NAVY_FG
 RESET=$'\033[0m'
 BOLD=$'\033[1m'
 DIM=$'\033[2m'
@@ -193,16 +194,16 @@ lrem=$(jq -r '.cost.total_lines_removed // 0' <<<"$input")
 # ── model segment content: model · ⚡flag · 󰧑flag · 󰓅gauge ──────────
 build_model_content() {
     local c="󰚩 ${model}  "
-    # fast — always filled bolt; gold(active) vs slate(disabled)
+    # fast — deep navy fg (active) vs gray fg (disabled); section bg unchanged
     if [ "$fast" = "true" ]; then
-        c+="${ACCENT_FG}󱐋${CRUST_FG}"
+        c+="${ON_FG}󱐋${CRUST_FG}"
     else
         c+="${DIM_FG}󱐋${CRUST_FG}"
     fi
     c+="  "
-    # thinking — gold(active) vs slate(disabled)
+    # thinking — same scheme
     if [ "$think" = "true" ]; then
-        c+="${ACCENT_FG}󰧑${CRUST_FG}"
+        c+="${ON_FG}󰧑${CRUST_FG}"
     else
         c+="${DIM_FG}󰧑${CRUST_FG}"
     fi
