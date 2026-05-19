@@ -1,3 +1,4 @@
 - [Keep cross-platform OS branches](feedback_keep_cross_platform_branches.md) — don't strip macOS/Linux forks from dotfiles even when user is currently on one OS
 - [Verify fix in user's actual environment](feedback_verify_in_user_env.md) — don't claim root cause from one synthetic repro that passes; consider stale state (orphans, dead sockets) first
 - [Widen the search when contradicted](feedback_verify_dont_trust_manpage.md) — man pages are fine first refs, but if user pushes back on a "not possible" answer, verify via another path (source, test) before repeating
+- [No Co-Authored-By: Claude trailer](feedback_no_co_author_trailer.md) — drop the Claude attribution line from every commit message; user wants sole authorship
