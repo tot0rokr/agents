@@ -181,18 +181,18 @@ lrem=$(jq -r '.cost.total_lines_removed // 0' <<<"$input")
 # ── model segment content: model · ⚡flag · 󰧑flag · 󰓅gauge ──────────
 build_model_content() {
     local c="󰚩 ${model}  "
-    # fast: filled bolt 󱐋 (on) vs outline bolt 󱐌 (off, dimmed)
+    # fast — always filled bolt; fg color shows on/off
     if [ "$fast" = "true" ]; then
         c+="󱐋"
     else
-        c+="${DIM}󱐌${UNDIM}${BOLD}"
+        c+="${DIM_FG}󱐋${CRUST_FG}"
     fi
     c+="  "
-    # thinking: filled head-cog 󰧑 (on) vs dim head-cog (off)
+    # thinking — same glyph; fg color shows on/off
     if [ "$think" = "true" ]; then
         c+="󰧑"
     else
-        c+="${DIM}󰧑${UNDIM}${BOLD}"
+        c+="${DIM_FG}󰧑${CRUST_FG}"
     fi
     c+="  "
     # effort gauge — 5-cell bg-colored, letter inside
