@@ -24,14 +24,16 @@ YELLOW_BG=$TEAL_HUE_BG   YELLOW_FG=$TEAL_HUE_FG       # git branch
 SAPPHIRE_BG=$MINT_BG     SAPPHIRE_FG=$MINT_FG         # model
 GREEN_BG=$BEIGE_BG       GREEN_FG=$BEIGE_FG           # ctx / 5h / 7d grouped
 TEAL_BG=$PALEYEL_BG      TEAL_FG=$PALEYEL_FG          # time + edits
-# Gauge fills — muted (low/med), gold for high alerts (still bg-only).
-LOW_EMPTY_BG=$'\033[48;5;152m'    LOW_FILLED_BG=$'\033[48;5;109m'    # slate family
-MED_EMPTY_BG=$'\033[48;5;187m'    MED_FILLED_BG=$'\033[48;5;144m'    # dusty olive
-HIGH_EMPTY_BG=$'\033[48;5;223m'   HIGH_FILLED_BG=$'\033[48;5;215m'   # warm beige + gold POINT
-GREEN_EMPTY_BG=$LOW_EMPTY_BG     GREEN_FILLED_BG=$LOW_FILLED_BG
-YELLOW_EMPTY_BG=$MED_EMPTY_BG    YELLOW_FILLED_BG=$MED_FILLED_BG
-RED_EMPTY_BG=$HIGH_EMPTY_BG      RED_FILLED_BG=$HIGH_FILLED_BG
-SAPPHIRE_EMPTY_BG=$'\033[48;5;109m'   SAPPHIRE_FILLED_BG=$'\033[48;5;67m'  # effort: slate/navy
+# Gauge fills — filled = grade indicator, empty = section bg slightly darkened.
+GAUGE_EMPTY_CTX=$'\033[48;5;250m'      # #bcbcbc ← darker than beige 254 for better contrast
+GAUGE_EMPTY_MODEL=$'\033[48;5;108m'    # #87af87 ← slightly darker than mint 151
+LOW_EMPTY_BG=$GAUGE_EMPTY_CTX     LOW_FILLED_BG=$'\033[48;5;109m'    # slate
+MED_EMPTY_BG=$GAUGE_EMPTY_CTX     MED_FILLED_BG=$'\033[48;5;144m'    # dusty olive
+HIGH_EMPTY_BG=$GAUGE_EMPTY_CTX    HIGH_FILLED_BG=$'\033[48;5;215m'   # gold POINT
+GREEN_EMPTY_BG=$LOW_EMPTY_BG      GREEN_FILLED_BG=$LOW_FILLED_BG
+YELLOW_EMPTY_BG=$MED_EMPTY_BG     YELLOW_FILLED_BG=$MED_FILLED_BG
+RED_EMPTY_BG=$HIGH_EMPTY_BG       RED_FILLED_BG=$HIGH_FILLED_BG
+SAPPHIRE_EMPTY_BG=$GAUGE_EMPTY_MODEL   SAPPHIRE_FILLED_BG=$'\033[48;5;67m'  # effort filled: navy
 # Disabled-icon fg: medium gray; Active-icon fg: deep navy (#1A3263).
 DIM_FG=$'\033[38;5;245m'
 ON_FG=$NAVY_FG
@@ -241,7 +243,7 @@ prev_was_grade=false
 # ctx
 if [ -n "$ctx_int" ]; then
     grade "$ctx_int"
-    g=$(gauge "$ctx_int" 9 "$GRADE_FILLED_BG" "$GRADE_EMPTY_BG")
+    g=$(gauge "$ctx_int" 7 "$GRADE_FILLED_BG" "$GRADE_EMPTY_BG")
     content="󰍛 ${g}${GRADE_BG}${CRUST_FG}${BOLD}"
     l+=$(seg "$GRADE_BG" "$prev" "$content"); prev=$GRADE_FG
     prev_was_grade=true
