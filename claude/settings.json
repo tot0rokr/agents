@@ -6,5 +6,9 @@
   },
   "hooks": {},
   "theme": "dark-daltonized",
-  "skipAutoPermissionPrompt": true
+  "skipAutoPermissionPrompt": true,
+  "statusLine": {
+    "type": "command",
+    "command": "bash /home/junho.lee/.claude/statusline-command.sh"
+  }
 }
