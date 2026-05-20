@@ -38,7 +38,7 @@ SAPPHIRE_EMPTY_BG=$GAUGE_EMPTY_MODEL   SAPPHIRE_FILLED_BG=$'\033[48;5;67m'  # ef
 DIM_FG=$'\033[38;5;245m'
 ON_FG=$NAVY_FG
 RESET=$'\033[0m'
-BOLD=$'\033[1m'
+BOLD=''             # disabled — text reads cleaner without bold
 DIM=$'\033[2m'
 UNDIM=$'\033[22m'   # resets bold+dim → re-apply BOLD after this
 ARROW=$''     # powerline solid right triangle
