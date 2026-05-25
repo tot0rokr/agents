@@ -13,6 +13,6 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "bash /home/junho.lee/.claude/statusline-command.sh"
+    "command": "bash \"$HOME/.claude/statusline-command.sh\""
   }
 }
