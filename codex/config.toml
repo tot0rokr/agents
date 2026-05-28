@@ -13,6 +13,9 @@ theme = "tokyonight"
 [projects."/home/junho"]
 trust_level = "trusted"
 
+[projects."/home/junho/agents"]
+trust_level = "trusted"
+
 [mcp_servers]
 
 [mcp_servers.linear]
