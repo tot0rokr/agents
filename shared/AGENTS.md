@@ -19,6 +19,10 @@ See [instructions/coding-style.md](./instructions/coding-style.md).
 
 See [instructions/git-workflow.md](./instructions/git-workflow.md).
 
+## Document writing
+
+See [instructions/doc-writing.md](./instructions/doc-writing.md).
+
 ## Personal context
 
 See [instructions/personal.md](./instructions/personal.md).
