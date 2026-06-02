@@ -10,10 +10,17 @@ General principles that apply across languages and projects. Project-level `AGEN
 
 - Favor concise, readable code. Clarity beats cleverness.
 - Do not overengineer. Build for what the task requires, not for hypothetical futures.
-- When extensibility looks important, surface it as a proposal instead of silently building it.
-  - Implement what was asked, cleanly.
-  - In the response, note the extensibility angle: "If you want this to extend to Y, here are the trade-offs / two ways to do it." Let the user decide whether to invest.
-  - Applies to plugin hooks, config options, generic interfaces, "while we're here" refactors.
+
+## Change discipline
+
+- Keep each change minimal and single-purpose. A small, focused diff is easy to review, test, and verify; a sprawling one hides bugs. Touch only what the task requires.
+- Separate mechanical changes (rename, move, reformat) from behavioral ones — don't mix them in one diff.
+- Enhancements beyond the task — refactors, new abstractions, performance work, extensibility — are proposed first and implemented only after approval. Never fold them silently into the change.
+- Write the proposal per concern, with detail:
+  - What the problem is — the concrete issue, where it lives, why it matters.
+  - How to fix it — the specific change you would make.
+  - The trade-off, if any.
+  Let the user decide what to invest in. Applies to plugin hooks, config options, generic interfaces, and "while we're here" refactors.
 
 ## Comments
 
@@ -51,6 +58,7 @@ General principles that apply across languages and projects. Project-level `AGEN
 - Split when a function mixes distinct concerns (parse + validate + dispatch). Keep it whole when it is one linear pipeline.
 - Module boundaries: prefer fewer, well-defined public symbols. Keep internal helpers private (`_helper`, file-local, package-private).
 - Avoid circular imports. If two modules need each other, either extract a third module or the dependency direction is wrong.
+- Minimize coupling between modules. Depend on narrow interfaces, not concrete internals — the fewer things a change forces to change elsewhere, the smaller and safer the diff.
 
 ## Error handling
 
