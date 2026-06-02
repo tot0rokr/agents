@@ -27,6 +27,10 @@ See [instructions/git-workflow.md](./instructions/git-workflow.md).
 
 See [instructions/doc-writing.md](./instructions/doc-writing.md).
 
+## Notifications
+
+See [instructions/notifications.md](./instructions/notifications.md).
+
 ## Personal context
 
 See [instructions/personal.md](./instructions/personal.md).
