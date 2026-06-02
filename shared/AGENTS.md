@@ -11,6 +11,10 @@ from here.
 
 See [instructions/language.md](./instructions/language.md).
 
+## Working style
+
+See [instructions/working-style.md](./instructions/working-style.md).
+
 ## Coding style
 
 See [instructions/coding-style.md](./instructions/coding-style.md).
