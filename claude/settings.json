@@ -7,6 +7,7 @@
   "hooks": {},
   "theme": "dark-daltonized",
   "skipAutoPermissionPrompt": true,
+  "skipWorkflowUsageWarning": true,
   "attribution": {
     "commit": "",
     "pr": ""
