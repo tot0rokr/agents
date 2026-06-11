@@ -14,5 +14,7 @@
   "statusLine": {
     "type": "command",
     "command": "bash \"$HOME/.claude/statusline-command.sh\""
-  }
+  },
+  "model": "claude-opus-4-8[1m]",
+  "effortLevel": "xhigh"
 }
