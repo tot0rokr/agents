@@ -12,9 +12,11 @@
 # ~/.claude is symlinked to agents/claude. We don't track them in git.
 claude/.credentials.json
 claude/.last-cleanup
+claude/.last-update-result.json
 claude/history.jsonl
 claude/policy-limits.json
 claude/mcp-needs-auth-cache.json
+claude/remote-settings.json
 claude/backups/
 claude/cache/
 claude/downloads/
@@ -22,12 +24,21 @@ claude/file-history/
 claude/paste-cache/
 claude/plans/
 claude/session-env/
+claude/session-logs/
 claude/sessions/
 claude/shell-snapshots/
 claude/tasks/
 claude/telemetry/
 claude/plugins/marketplaces/
 claude/stats-cache.json
+# Background job/daemon runtime state (control.key is a secret — never track).
+claude/jobs/
+claude/daemon/
+claude/daemon.lock
+claude/daemon.log
+claude/daemon.status.json
+# Chrome native-messaging host, installed at runtime.
+claude/chrome/
 
 # Per-project runtime state, except the symlink to shared/memory.
 # install.sh creates ~/.claude/projects/-home-junho/memory as a symlink to
