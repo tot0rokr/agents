@@ -15,6 +15,10 @@ See [instructions/language.md](./instructions/language.md).
 
 See [instructions/working-style.md](./instructions/working-style.md).
 
+## Parallelism & orchestration
+
+See [instructions/orchestration.md](./instructions/orchestration.md).
+
 ## Coding style
 
 See [instructions/coding-style.md](./instructions/coding-style.md).
