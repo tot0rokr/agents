@@ -31,6 +31,7 @@ claude/tasks/
 claude/telemetry/
 claude/plugins/marketplaces/
 claude/stats-cache.json
+claude/gh-pr-status-cache.json
 # Per-session timestamps written by the timestamp-{prompt,stop} hooks.
 claude/.timestamp-state/
 # Background job/daemon runtime state (control.key is a secret — never track).
