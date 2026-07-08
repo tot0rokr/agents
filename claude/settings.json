@@ -10,6 +10,46 @@
   },
   "model": "opus[1m]",
   "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v bell-send >/dev/null 2>&1 && bell-send --backends=bel,notify-send 'claude done' >/dev/null 2>&1",
+            "async": true
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$HOME/.claude/hooks/timestamp-stop.sh\""
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$HOME/.claude/hooks/timestamp-prompt.sh\""
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v bell-send >/dev/null 2>&1 && bell-send --backends=bel,notify-send 'claude needs input' >/dev/null 2>&1",
+            "async": true
+          }
+        ]
+      }
+    ],
     "PostCompact": [
       {
         "hooks": [
