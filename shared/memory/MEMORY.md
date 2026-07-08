@@ -2,7 +2,7 @@
 - [Verify fix in user's actual environment](feedback_verify_in_user_env.md) — don't claim root cause from one synthetic repro that passes; consider stale state (orphans, dead sockets) first
 - [Widen the search when contradicted](feedback_verify_dont_trust_manpage.md) — man pages are fine first refs, but if user pushes back on a "not possible" answer, verify via another path (source, test) before repeating
 - [No Co-Authored-By: Claude trailer](feedback_no_co_author_trailer.md) — drop the Claude attribution line from every commit message; user wants sole authorship
-- [User git identity](user_git_identity.md) — personal TOT0Ro <tot0roprog@gmail.com> vs work junho.lee@mangoboost.io; ask which to use
+- [Git identity by domain](user_git_identity.md) — enterprise gh host → work account, github.com → personal account; unknown domain → ask, then record the mapping
 - [No Claude co-author trailer](feedback_no_claude_co_author.md) — never append `Co-Authored-By: Claude ...` to git commit messages
 - [No hard-wrap in markdown](feedback_no_hard_wrap_markdown.md) — don't break paragraphs/bullets into multiple lines; one logical line = one physical line
 - [Label evidence and sources](feedback_label_evidence_and_sources.md) — when analyzing/measuring, tag claims 실측/추정/가설/사실 and cite the source inline
