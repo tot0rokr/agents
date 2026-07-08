@@ -48,6 +48,14 @@
             "async": true
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$HOME/.claude/hooks/timestamp-notification.sh\""
+          }
+        ]
       }
     ],
     "PostCompact": [
