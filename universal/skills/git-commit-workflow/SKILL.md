@@ -53,21 +53,25 @@ git status \
 
 Read the staged diff and write the message from what is actually there. If the diff and the intended change disagree, fix the staging before writing the message.
 
-## Multi-line messages: stacked -m flags with line continuations
+## Commit messages: always use a heredoc (`-F -`)
 
-For commit messages spanning multiple lines, use repeated `-m` flags rather than opening an editor or embedding newlines in a single quoted string. Use `\` to continue the command across lines so the message structure is visible:
+For every commit message — single-line or multi-paragraph — pipe the whole message through `git commit -F -` (heredoc), or `-F <file>`. This gives full control over wrapping: wrap prose at ~72 columns *within* a paragraph, and put a single blank line only *between* paragraphs (and after the subject).
 
 ```bash
-git commit \
-  -m "subsystem: short imperative summary" \
-  -m "" \
-  -m "Explain what changed and why. Reference the problem this" \
-  -m "addresses and any non-obvious decisions." \
-  -m "" \
-  -m "Refs: #123"
+git commit -F - <<'EOF'
+subsystem: short imperative summary
+
+Explain what changed and why in a normal wrapped paragraph. Reference the
+problem this addresses and any non-obvious decisions — these lines flow
+together because they are one paragraph, not separate flags.
+
+- bullet points are fine; keep the body tight, not a wall of text
+
+Refs: #123
+EOF
 ```
 
-Each `-m` becomes a paragraph separated by a blank line in the final message. The empty `-m ""` flags produce the blank-line separators that git's commit format expects between subject and body.
+Never build a commit message from `-m` flags — not even a single-line one. git turns each `-m` into its own paragraph with a blank line between, so a body split across several `-m` flags becomes disconnected half-sentences. The heredoc form above is the only form to use.
 
 ## Destructive operations require explicit user approval
 
