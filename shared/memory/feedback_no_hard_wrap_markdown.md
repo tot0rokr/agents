@@ -1,7 +1,8 @@
 ---
-name: no-hard-wrap-markdown
+name: feedback_no_hard_wrap_markdown
 description: Markdown 문서에서 한 줄(한 단락·한 불릿)을 여러 줄로 강제 줄바꿈하지 말 것. 논리적 한 줄 = 물리적 한 줄.
 metadata:
+  node_type: memory
   type: feedback
 ---
 

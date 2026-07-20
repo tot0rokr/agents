@@ -1,8 +1,10 @@
 ---
-name: Keep cross-platform OS branches in dotfiles
+name: feedback_keep_cross_platform_branches
 description: User prefers to keep if/elseif OS-detection branches (windows/darwin/linux) in shared config files even when currently only one platform is in use
-type: feedback
-originSessionId: 36bc01af-b9b4-49cb-ad53-f96186b1ca9b
+metadata:
+  node_type: memory
+  type: feedback
+  originSessionId: 36bc01af-b9b4-49cb-ad53-f96186b1ca9b
 ---
 In dotfiles and config scripts that already branch on OS (e.g. `wezterm.target_triple:find("windows") / "darwin" / "linux"` in `~/.wezterm.lua`), do **not** propose removing the inactive branches as dead-code cleanup, even when the user states only one platform is currently in use.
 

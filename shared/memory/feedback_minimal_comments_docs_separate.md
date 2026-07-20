@@ -1,5 +1,5 @@
 ---
-name: minimal-comments-docs-separate
+name: feedback_minimal_comments_docs_separate
 description: Code comments minimal and only when needed; usage and detailed explanations belong in separate docs
 metadata: 
   node_type: memory
@@ -11,4 +11,4 @@ Keep code comments clean: write a comment only when it is needed, and only the n
 
 **Why:** keeps source readable and uncluttered; details live in docs where they are discoverable and maintainable instead of duplicated across verbose comments.
 
-**How to apply:** when writing code, comment sparingly — explain decisions/non-obvious reasoning, skip "what" narration. Put how-to-use guides and deep explanations in `docs/*.md`. Coheres with doc-cleanliness prefs [[no-bold-overuse]] and [[no-hard-wrap-markdown]].
+**How to apply:** when writing code, comment sparingly — explain decisions/non-obvious reasoning, skip "what" narration. Put how-to-use guides and deep explanations in `docs/*.md`. Coheres with doc-cleanliness prefs [[feedback_no_bold_overuse]] and [[feedback_no_hard_wrap_markdown]].

@@ -1,8 +1,10 @@
 ---
-name: Verify fix in user's actual environment
+name: feedback_verify_in_user_env
 description: Don't claim a fix worked from a single synthetic reproduction — verify in the user's real session, especially when their original repro was intermittent
-type: feedback
-originSessionId: 25e70a62-a9ad-4847-8a12-1f223d9edf71
+metadata:
+  node_type: memory
+  type: feedback
+  originSessionId: 25e70a62-a9ad-4847-8a12-1f223d9edf71
 ---
 When diagnosing a crash/hang the user reports, do NOT declare a root cause from one successful synthetic reproduction (e.g., a fresh `tmux new-session -d` started by my own Bash tool). The user's environment carries state — orphan/zombie processes, stale sockets, prior session env — that controlled reproductions don't have.
 

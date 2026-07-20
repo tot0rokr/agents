@@ -1,5 +1,5 @@
 ---
-name: label-evidence-and-sources
+name: feedback_label_evidence_and_sources
 description: "무언가를 분석·검사·측정해 답할 때 실측/추정/가설/사실을 구분해 태그하고, 각 주장에 출처를 함께 표기할 것."
 metadata: 
   node_type: memory
