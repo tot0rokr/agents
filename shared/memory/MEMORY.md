@@ -1,7 +1,6 @@
 - [Keep cross-platform OS branches](feedback_keep_cross_platform_branches.md) — don't strip macOS/Linux forks from dotfiles even when user is currently on one OS
 - [Verify fix in user's actual environment](feedback_verify_in_user_env.md) — don't claim root cause from one synthetic repro that passes; consider stale state (orphans, dead sockets) first
 - [Widen the search when contradicted](feedback_verify_dont_trust_manpage.md) — man pages are fine first refs, but if user pushes back on a "not possible" answer, verify via another path (source, test) before repeating
-- [No Co-Authored-By: Claude trailer](feedback_no_co_author_trailer.md) — drop the Claude attribution line from every commit message; user wants sole authorship
 - [Git identity by domain](user_git_identity.md) — enterprise gh host → work account, github.com → personal account; unknown domain → ask, then record the mapping
 - [No Claude co-author trailer](feedback_no_claude_co_author.md) — never append `Co-Authored-By: Claude ...` to git commit messages
 - [No hard-wrap in markdown](feedback_no_hard_wrap_markdown.md) — don't break paragraphs/bullets into multiple lines; one logical line = one physical line
@@ -15,3 +14,5 @@
 - [tmux+worktree+teammate workflow](feedback_tmux_worktree_teammate_workflow.md) — default when inside tmux: each teammate in its own git worktree + own tmux window (watch via capture-pane, drive via send-keys); merge worktrees and close windows when done
 - [Rehydrate context after compact](feedback_rehydrate_context_after_compact.md) — after any compaction, immediately re-read prior conversation to refill ~30% context before acting; enforced by global PostCompact hook (~/.claude/hooks/post-compact-rehydrate.sh)
 - [Act on sensible defaults, don't over-ask](feedback_act_dont_over_ask.md) — pick the reasonable option, state what I did, and proceed; reserve AskUserQuestion for genuine forks (destructive/outward-facing or truly ambiguous intent)
+- [Always create project instructions](feedback_always_create_project_instructions.md) — when scaffolding a new project, always add a project-level CLAUDE.md (tool-neutral); don't rely on the global one alone
+- [Jira/Confluence titles](feedback_jira_confluence_titles.md) — Jira issue and Confluence page titles: simple, intuitive, English (not Korean, not full sentences); detail goes in the body
