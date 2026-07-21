@@ -3,6 +3,7 @@
 - [Widen the search when contradicted](feedback_verify_dont_trust_manpage.md) — man pages are fine first refs, but if user pushes back on a "not possible" answer, verify via another path (source, test) before repeating
 - [Git identity by domain](user_git_identity.md) — enterprise gh host → work account, github.com → personal account; unknown domain → ask, then record the mapping
 - [No Claude co-author trailer](feedback_no_claude_co_author.md) — never append `Co-Authored-By: Claude ...` to git commit messages
+- [Push only when explicitly asked](feedback_push_only_when_asked.md) — never auto-push; push needs a fresh instruction each time (one "push" ≠ standing permission); on a branch's first push with multiple remotes, ask which remote
 - [No hard-wrap in markdown](feedback_no_hard_wrap_markdown.md) — don't break paragraphs/bullets into multiple lines; one logical line = one physical line
 - [Label evidence and sources](feedback_label_evidence_and_sources.md) — when analyzing/measuring, tag claims 실측/추정/가설/사실 and cite the source inline
 - [grep/find → rg/fd wrappers](project_grep_find_rg_fd_wrappers.md) — user's interactive shell aliases grep/find to translating functions (faithful mode, fallback to real tool); suspect these if grep/find "behaves differently"
