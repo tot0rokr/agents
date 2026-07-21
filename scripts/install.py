@@ -300,6 +300,9 @@ class InstallResult:
     skipped: list[str] = field(default_factory=list)
     rolled_back: bool = False
     error: Exception | None = None
+    # Post-install reconcile guide (only when a real ~/.claude was moved aside).
+    leftovers: list[str] = field(default_factory=list)
+    reconcile_report: Path | None = None
 
 
 class Installer:
@@ -332,6 +335,12 @@ class Installer:
             self.result.error = exc
             self.result.rolled_back = True
             raise
+        # Install succeeded. Leave a human-readable guide for whatever Phase 3
+        # could not carry over — best-effort, never fails the install.
+        try:
+            self._write_reconcile_guide()
+        except Exception as exc:  # noqa: BLE001
+            self.log(f"warning: reconcile guide not written: {exc}")
         return self.result
 
     # ---- phase 1: top-level symlinks ----
@@ -451,6 +460,99 @@ class Installer:
         if sl_src.exists():
             self._record(MergeJsonPermissions(sl_src, cur / "settings.local.json"))
 
+    # ---- post-install: reconcile guide (never invokes claude) ----
+
+    def _write_reconcile_guide(self) -> None:
+        """Leave a guide for what Phase 3 did NOT carry over.
+
+        Only runs when a real ``~/.claude`` was moved aside. Computes which
+        top-level entries of the backup were actually migrated (by inspecting
+        the recorded operations) and lists the rest, then writes a markdown
+        guide into the backup with a ready-to-paste prompt so the user can open
+        ``claude`` themselves and finish. Never runs claude; never touches the
+        backup beyond writing this one file.
+        """
+        claude_bak = self.result.backups.get(self.home / ".claude")
+        if self.dry_run or not claude_bak or not claude_bak.is_dir():
+            return
+
+        cur = (self.home / ".claude").resolve()
+        migrated: set[str] = set()
+        for op in self.result.operations:
+            dst = getattr(op, "dst", None) or getattr(op, "target", None)
+            if dst is None:
+                continue
+            try:
+                rel = Path(dst).resolve().relative_to(cur)
+            except ValueError:
+                continue
+            if rel.parts:
+                migrated.add(rel.parts[0])
+
+        leftovers = [
+            child.name
+            for child in sorted(claude_bak.iterdir())
+            if child.name not in migrated
+        ]
+        self.result.leftovers = leftovers
+        if not leftovers:
+            return
+
+        hints = {
+            "settings.json": (
+                "custom hooks/settings — only settings.local.json permissions "
+                "were merged; merge any custom hooks by hand"
+            ),
+            "shell-snapshots": "captured shell env snapshots — usually safe to drop",
+            "remote-settings.json": "managed/remote settings cache",
+            "todos": "per-session todo lists",
+            "statsig": "feature-flag cache — safe to drop",
+            "plugins": "installed plugins/marketplaces — recheck if you rely on them",
+        }
+
+        report = claude_bak / "RECONCILE-WITH-CLAUDE.md"
+        lines = [
+            f"# Migration reconcile — {self.ts}",
+            "",
+            "`install.py` symlinked your home config into this repo and moved your",
+            "previous real `~/.claude` here:",
+            "",
+            f"    {claude_bak}",
+            "",
+            "Phase 3 auto-carried the important runtime data (transcripts, history,",
+            "sessions, file-history, credentials, settings.local permissions) into the",
+            "new `~/.claude`. The items below were **not** carried over and remain",
+            "only in this backup — review and move anything you still want by hand.",
+            "",
+            "## Not auto-migrated (review)",
+            "",
+        ]
+        lines += [
+            f"- `{name}`" + (f" — {hints[name]}" if name in hints else "")
+            for name in leftovers
+        ]
+        lines += [
+            "",
+            "## Finish it yourself with Claude",
+            "",
+            "Open Claude in the repo:",
+            "",
+            f"    cd {self.repo_root}",
+            "    claude",
+            "",
+            "Then paste:",
+            "",
+            "> Reconcile my Claude migration. Compare the backup at",
+            f"> `{claude_bak}` against my current `~/.claude` and help me carry over",
+            "> anything important that was not migrated (list is in this file:",
+            f"> `{report}`). Do NOT delete the backup; show me each move first.",
+            "",
+            "_Delete the backup only after you have confirmed nothing else is needed._",
+            "",
+        ]
+        report.write_text("\n".join(lines))
+        self.result.reconcile_report = report
+
     # ---- internals ----
 
     def _record(self, op: Op) -> None:
@@ -526,6 +628,11 @@ def main(argv: list[str] | None = None) -> int:
     if result.skipped:
         for msg in result.skipped:
             print(f"SKIP: {msg}")
+
+    if result.reconcile_report:
+        print()
+        print("Some items were not auto-migrated. Open `claude` and finish them:")
+        print(f"  guide: {result.reconcile_report}")
 
     print()
     print("Done. Run 'scripts/doctor.sh' to verify.")

@@ -144,6 +144,54 @@ class TestPhase3Restore(InstallTestBase):
         )
 
 
+class TestReconcileGuide(InstallTestBase):
+    def _make_real_claude_with_leftovers(self) -> Path:
+        claude = self.home / ".claude"
+        claude.mkdir()
+        # migrated by phase 3
+        (claude / "history.jsonl").write_text("{}\n")
+        (claude / "sessions").mkdir()
+        (claude / "sessions" / "s1.json").write_text("{}")
+        # NOT migrated -> should be listed as leftovers
+        (claude / "shell-snapshots").mkdir()
+        (claude / "shell-snapshots" / "snap.sh").write_text("echo hi")
+        (claude / "settings.json").write_text('{"hooks": {}}')
+        (claude / "remote-settings.json").write_text("{}")
+        return claude
+
+    def test_guide_lists_only_unmigrated(self):
+        self._make_real_claude_with_leftovers()
+
+        result = install(home=self.home, repo_root=self.repo)
+
+        self.assertIsNotNone(result.reconcile_report)
+        report = result.reconcile_report
+        self.assertTrue(report.is_file())
+        # guide lives inside the backup, never deletes it
+        backups = list(self.home.glob(".claude.bak.*"))
+        self.assertEqual(len(backups), 1)
+        self.assertEqual(report.parent, backups[0])
+
+        text = report.read_text()
+        for expected in ("shell-snapshots", "settings.json", "remote-settings.json"):
+            self.assertIn(expected, result.leftovers)
+            self.assertIn(expected, text)
+        for migrated in ("history.jsonl", "sessions"):
+            self.assertNotIn(migrated, result.leftovers)
+        # custom-hooks hint is present for settings.json
+        self.assertIn("merge any custom hooks", text)
+
+    def test_fresh_install_writes_no_guide(self):
+        result = install(home=self.home, repo_root=self.repo)
+        self.assertIsNone(result.reconcile_report)
+        self.assertEqual(result.leftovers, [])
+
+    def test_dry_run_writes_no_guide(self):
+        self._make_real_claude_with_leftovers()
+        result = install(home=self.home, repo_root=self.repo, dry_run=True)
+        self.assertIsNone(result.reconcile_report)
+
+
 class TestPhase2SlugDiscovery(InstallTestBase):
     def test_slug_from_backup_is_linked(self):
         mem_dir = self.home / ".claude" / "projects" / "-other-slug" / "memory"
