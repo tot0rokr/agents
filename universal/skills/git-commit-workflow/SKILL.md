@@ -27,15 +27,33 @@ A working tree often contains modifications from earlier sessions, the user's ow
    - **Deliberately uncommitted** — the user said "don't commit this", or it's known working-tree-only state (e.g. memory files with PII, `*.local.json`). Stays out.
    - **Unsure** — stop and ask the user before staging. Don't guess.
 
-3. **Stage by explicit path.** Always:
+3. **Stage only your changes — by explicit path, and by hunk when a file is mixed.**
 
-   ```bash
-   git add path/to/specific-file.py path/to/other-file.md
-   ```
+   - **Whole file is yours** → stage it by explicit path:
 
-   **Forbidden — no exceptions**: `git add -A`, `git add .`, `git add -u`, `git add :/`, or any glob that could absorb unrelated changes. If the file list is long, list every path on its own line; the verbosity is the point.
+     ```bash
+     git add path/to/specific-file.py path/to/other-file.md
+     ```
 
-4. **Verify staging matches intent.** After staging, run `git status --short` once more and `git diff --staged` again. Compare what's staged to your bucket-1 list from step 2. If anything else snuck in, `git restore --staged <path>` it and re-verify.
+     If the file list is long, list every path on its own line; the verbosity is the point.
+
+   - **A file mixes changes that belong in this commit with ones that don't** (classic case: your one new line lives in a `MEMORY.md` / config that also holds working-tree-only PII or another session's edits) → never stage the whole file, and do not think in whole hunks either. git collapses nearby edits into a single hunk, so several unrelated changes routinely appear merged together and a plain `git add -p` `y` would take all of them. Select only the **exact lines** this commit should contain, named explicitly:
+
+     - **Preferred — build a patch of exactly those lines and apply it to the index.** Explicit, reviewable, and works non-interactively:
+
+       ```bash
+       git diff -- path/to/mixed-file.md > /tmp/all.patch
+       # hand-trim /tmp/all.patch down to only the +/- lines this commit should include,
+       # keeping enough surrounding context lines that the hunk still applies
+       git apply --cached --check /tmp/my-lines.patch   # dry-run: verify it applies
+       git apply --cached /tmp/my-lines.patch           # then stage exactly those lines
+       ```
+
+     - **Interactive alternative** — `git add -p path/to/mixed-file.md`, but its per-hunk `y`/`n` is not line-precise: use `s` to split as far as git will, and `e` to hand-edit the hunk buffer (delete the `+`/`-` lines you don't want) whenever a split still leaves your line merged with others.
+
+   **Forbidden — no exceptions**: `git add -A`, `git add .`, `git add -u`, `git add :/`, or any glob that could absorb unrelated changes.
+
+4. **Verify staging matches intent.** After staging, run `git status --short` once more and `git diff --staged` again. Compare what's staged to your bucket-1 list from step 2. If anything else snuck in, `git restore --staged <path>` it and re-verify. When you hunk-staged a mixed file, this step is mandatory, not optional: confirm every excluded hunk (PII, another session's edits) still shows in `git diff` (working tree) but is **absent** from `git diff --staged`.
 
 ### Failure mode this rule blocks
 
