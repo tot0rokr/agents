@@ -40,8 +40,9 @@
         ]
       }
     ],
-    "PostCompact": [
+    "SessionStart": [
       {
+        "matcher": "compact",
         "hooks": [
           {
             "type": "command",
