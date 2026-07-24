@@ -17,6 +17,7 @@ MINT_BG=$'\033[48;5;151m'        MINT_FG=$'\033[38;5;151m'        # ≈ #afd7af 
 BEIGE_BG=$'\033[48;5;254m'       BEIGE_FG=$'\033[38;5;254m'       # ≈ #e4e4e4  ≈ #E5E1DA
 PALEYEL_BG=$'\033[48;5;230m'     PALEYEL_FG=$'\033[38;5;230m'     # ≈ #ffffd7  ≈ #F6F8D5
 GOLD_BG=$'\033[48;5;215m'        GOLD_FG=$'\033[38;5;215m'        # ≈ #ffaf5f  ≈ #FFC570 (POINT, bg only)
+MAUVE_BG=$'\033[48;5;141m'       MAUVE_FG=$'\033[38;5;141m'    # ≈ #af87ff catppuccin mauve — active Claude account
 # Section assignments
 RED_BG=$NAVY_BG          RED_FG=$NAVY_FG              # user@host
 PEACH_BG=$NAVY2_BG       PEACH_FG=$NAVY2_FG           # cwd
@@ -217,11 +218,30 @@ build_model_content() {
     printf '%s' "$c"
 }
 
+# ── active Claude account (always shown) ────────────────────────────
+acct_label=""
+_aa_root="$HOME/.claude-accounts"
+_aa=$(cat "$_aa_root/state/current" 2>/dev/null)
+if [ -n "$_aa" ]; then
+    acct_label=$(cat "$_aa_root/store/$_aa/email" 2>/dev/null)
+    acct_label="${acct_label%%@*}"          # email local-part
+    [ -z "$acct_label" ] && acct_label="$_aa"
+elif [ -f "$HOME/.claude.json" ]; then
+    acct_label=$(grep -m1 -oE '"emailAddress"[^,}]*' "$HOME/.claude.json" 2>/dev/null \
+                 | grep -oE '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+')
+    acct_label="${acct_label%%@*}"
+fi
+
 # ── compose powerline ───────────────────────────────────────────────
 l=""; prev=""
 
 # user@host (dark navy bg → light text)
 l+=$(seg_first "$RED_BG" " ${user}@${host}" "$LIGHT_FG"); prev=$RED_FG
+
+# active Claude account (mauve accent → dark text)
+if [ -n "$acct_label" ]; then
+    l+=$(seg "$MAUVE_BG" "$prev" " 󰀄 ${acct_label}" "$CRUST_FG"); prev=$MAUVE_FG
+fi
 
 # cwd (mid navy bg → light text)
 l+=$(seg "$PEACH_BG" "$prev" " ${cwd_short}" "$LIGHT_FG"); prev=$PEACH_FG
