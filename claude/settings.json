@@ -57,7 +57,7 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "bash \"$HOME/.claude/statusline-command.sh\""
+    "command": "bash \"$HOME/.local/bin/claude-auto-statusline\""
   },
   "effortLevel": "xhigh",
   "skipWorkflowUsageWarning": true,
