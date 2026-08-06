@@ -8,7 +8,7 @@
     "allow": [],
     "deny": []
   },
-  "model": "opus[1m]",
+  "model": "claude-fable-5[1m]",
   "hooks": {
     "Stop": [
       {
@@ -47,6 +47,17 @@
           {
             "type": "command",
             "command": "bash \"$HOME/.claude/hooks/post-compact-rehydrate.sh\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"/home/junho.lee/.local/bin/claude-auto\" __check >/dev/null 2>&1",
+            "async": true
           }
         ]
       }

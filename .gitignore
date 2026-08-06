@@ -100,3 +100,6 @@ __pycache__/
 mcp/dist/
 mcp/build/
 mcp/**/*.egg-info/
+
+# claude-account-switcher install.sh backups (~/.claude symlinks into this repo)
+*.pre-claude-auto.*.bak
