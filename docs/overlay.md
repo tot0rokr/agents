@@ -111,3 +111,11 @@ For a work environment, host the overlay on the employer's git server and regist
 Nothing writes `servers.json` at runtime, so it needs no unmanaged-key preservation: removing an overlay removes its servers cleanly. `render-mcp.sh` reads the rendered file and is unchanged, so the per-tool configs pick up overlay servers on the next render.
 
 Tokens and passwords do not belong in an overlay either. Reference them from the environment in the server definition and keep the values in your secret store.
+
+## Known gaps
+
+`render-mcp.sh` rewrites each tool's native config — for Claude Code, `~/.claude.json` — from the rendered `servers.json`. A server whose definition deliberately omits a secret (the BSP knowledge base leaves out `NEO4J_PASSWORD`) would have that value stripped from the live config on the next render. Until the renderer merges rather than replaces per-server `env` and `headers`, run it knowing that, and re-supply the secret afterwards.
+
+Memory pointer lines have no overlay path. `shared/memory/MEMORY.md` is one tracked file in the public base, so the one-line index entry for an overlay-provided memory has nowhere private to live. It needs the same base/fragment split the JSON artifacts got, or an include mechanism.
+
+`.git/info/exclude` is shared by every worktree of the repo, so applying an overlay inside a worktree also hides those paths in the main checkout. Harmless when the names do not collide, but worth knowing when testing an overlay from a worktree.
