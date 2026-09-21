@@ -6,10 +6,42 @@
   },
   "permissions": {
     "allow": [],
-    "deny": []
+    "deny": [],
+    "defaultMode": "auto"
   },
-  "model": "claude-fable-5[1m]",
+  "model": "claude-fable-5-1[1m]",
   "hooks": {
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$HOME/worklog/hooks/auto-ingest.sh\"",
+            "timeout": 20
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$HOME/.claude/hooks/pre-compact-branch.sh\"",
+            "timeout": 120
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$HOME/worklog/hooks/auto-ingest.sh\"",
+            "timeout": 20
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
@@ -56,7 +88,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"/home/junho.lee/.local/bin/claude-auto\" __check >/dev/null 2>&1",
+            "command": "\"$HOME/.local/bin/claude-auto\" __check >/dev/null 2>&1",
             "async": true
           }
         ]
@@ -74,6 +106,6 @@
   "skipWorkflowUsageWarning": true,
   "theme": "dark-daltonized",
   "autoCompactEnabled": true,
-  "remoteControlAtStartup": true,
-  "skipAutoPermissionPrompt": true
+  "switchModelsOnFlag": false,
+  "remoteControlAtStartup": true
 }

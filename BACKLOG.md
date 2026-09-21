@@ -70,6 +70,15 @@ Outstanding work for the unified agents harness and its companion MCP package. I
       `edit_memory` / `edit_instruction` (write `shared/memory/<name>.md`
       or `shared/instructions/<topic>.md`).
 
+## Overlays
+
+- [x] Overlay mechanism — `docs/overlay.md`, `scripts/overlay.py` (add/install/list/status/update/remove/init), `scripts/render_settings.py`, `templates/overlay-example/`. Markdown and skill drop-ins are symlinked from the overlay clone, JSON fragments are deep-merged, arbitrary paths go through the manifest's `links` map, `${VAR}` comes from the overlay's `vars.json`, and applied state lives in `overlays/*.local.json`.
+- [x] `claude/settings.json` and `shared/mcp/servers.json` are render artifacts and untracked — Claude Code writes `autoMode.environment` (employer hostnames, repo paths) straight into the settings file, which used to land in a public repo's staging area.
+- [ ] Move environment-specific content out of the base repo into private overlays: the `~/worklog` hooks now sitting in `settings.base.json`, anything else naming a machine or an employer.
+- [ ] Publish `agents-overlay-example` as its own public repo, and teach `overlay.py init` to start from a git URL as well as the in-tree template.
+- [ ] Overlay tools in `integrated-harness-kit-mcp` — `overlay_add` / `overlay_install` / `overlay_status`, alongside the v0.5.0 maintenance set.
+- [ ] `overlay.py` unit tests — the full init/add/install/status/update/remove path is only covered by a manual scratch run so far.
+
 ## Publishing & CI
 
 - [x] **PyPI account + tokens** — `tot0rokr` account on both pypi.org and

@@ -2,6 +2,17 @@
 **/settings.local.json
 **/*.local.json
 
+# --- Overlays (see docs/overlay.md) ---
+# Overlay clones, their registry and the applied-state records hold
+# environment-specific data, often from private repos. Never tracked here.
+overlays/
+
+# Rendered from a tracked base plus enabled overlays. Claude Code also writes
+# runtime state (autoMode.environment) straight into the settings file, which
+# is exactly what must not reach a public repo.
+claude/settings.json
+shared/mcp/servers.json
+
 # PyPI credentials — must NEVER end up in this repo. Belt-and-suspenders
 # alongside the canonical ~/.pypirc location.
 .pypirc

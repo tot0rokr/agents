@@ -335,6 +335,11 @@ class Installer:
             self.result.error = exc
             self.result.rolled_back = True
             raise
+        # A fresh clone has no claude/settings.json; it is rendered, not tracked.
+        try:
+            self._render_settings()
+        except Exception as exc:  # noqa: BLE001
+            self.log(f"warning: settings not rendered: {exc}")
         # Install succeeded. Leave a human-readable guide for whatever Phase 3
         # could not carry over — best-effort, never fails the install.
         try:
@@ -342,6 +347,16 @@ class Installer:
         except Exception as exc:  # noqa: BLE001
             self.log(f"warning: reconcile guide not written: {exc}")
         return self.result
+
+    def _render_settings(self) -> None:
+        if self.dry_run or not (self.repo_root / "claude" / "settings.base.json").is_file():
+            return
+        sys.path.insert(0, str(self.repo_root / "scripts"))
+        from render_settings import render_all
+
+        for rel, merged in render_all(self.repo_root).items():
+            if merged:
+                self.log(f"RUN: render {rel}")
 
     # ---- phase 1: top-level symlinks ----
 

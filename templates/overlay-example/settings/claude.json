@@ -1,0 +1,5 @@
+{
+  "env": {
+    "EXAMPLE_INTERNAL_GIT_HOST": "${INTERNAL_GIT_HOST}"
+  }
+}

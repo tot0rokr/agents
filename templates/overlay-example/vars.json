@@ -1,0 +1,5 @@
+{
+  "INTERNAL_GIT_HOST": "git.example.internal",
+  "WORK_EMAIL": "you@example.com",
+  "PROJECT_ROOT": "${HOME}/work"
+}

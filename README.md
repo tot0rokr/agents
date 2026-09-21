@@ -15,14 +15,16 @@ agents/
 │   ├── AGENTS.md                main instruction file, referenced by all 4
 │   ├── instructions/            topic files linked from AGENTS.md
 │   ├── memory/                  long-term memory; OpenCode reads via AGENTS.md ref
-│   ├── mcp/servers.json         canonical MCP definitions -> rendered per tool
+│   ├── mcp/servers.base.json    tracked base for MCP definitions
+│   ├── mcp/servers.json         rendered from base + overlays (gitignored)
 │   ├── subagents/               .md frontmatter (claude/opencode direct)
 │   ├── commands/                .md (claude/codex/opencode direct; gemini rendered)
 │   └── output-styles/           Claude-specific today, reserved for future
 │
 ├── claude/                    -> ~/.claude
 │   ├── CLAUDE.md                -> ../shared/AGENTS.md
-│   ├── settings.json            hooks, permissions, outputStyle (tool-specific)
+│   ├── settings.base.json       tracked base: hooks, permissions, model
+│   ├── settings.json            rendered from base + overlays (gitignored)
 │   ├── skills/                  -> ../universal/skills
 │   ├── agents/                  -> ../shared/subagents
 │   ├── commands/                -> ../shared/commands
@@ -47,13 +49,20 @@ agents/
 │   ├── commands/                .toml files generated from shared/commands
 │   └── extensions/              Gemini Extensions
 │
-└── scripts/
-    ├── install.sh               install home-dir symlinks
-    ├── render-mcp.sh            shared/mcp/servers.json -> 4 tool formats
-    ├── render-codex-config.sh   wrapper around render-mcp.sh
-    ├── render-gemini-commands.sh   shared/commands/*.md -> gemini/commands/*.toml
-    ├── render-gemini-settings.sh   wrapper around render-mcp.sh
-    └── doctor.sh                verify links and configs
+├── scripts/
+│   ├── install.py               home-dir symlinks, rollback-safe; renders settings
+│   ├── install.sh               thin wrapper around install.py
+│   ├── overlay.py               register and apply environment overlays
+│   ├── render_settings.py       settings.base.json + overlays -> settings.json
+│   ├── render-mcp.sh            shared/mcp/servers.json -> 4 tool formats
+│   ├── render-codex-config.sh   wrapper around render-mcp.sh
+│   ├── render-gemini-commands.sh   shared/commands/*.md -> gemini/commands/*.toml
+│   ├── render-gemini-settings.sh   wrapper around render-mcp.sh
+│   └── doctor.sh                verify links and configs
+│
+├── templates/overlay-example/   skeleton for a new overlay repo
+├── docs/overlay.md              how overlays work
+└── overlays/                    overlay clones and local state (gitignored)
 ```
 
 ## Quick start
@@ -81,6 +90,21 @@ point at this repo are skipped.
 | `shared/subagents/<name>.md` | Claude and OpenCode directly. Codex/Gemini need their own format. |
 | `shared/commands/<name>.md` | Claude, Codex (`~/.codex/prompts/`), OpenCode directly. Run `render-gemini-commands.sh` to push to Gemini. |
 | `shared/mcp/servers.json` | Canonical. Run `render-mcp.sh` to write into all 4 tool configs. |
+
+## Overlays
+
+This repo is public, so nothing environment-specific belongs in it — no employer hostnames, internal remotes, project names, IPs, ports or account IDs. Those live in a separate overlay repo (private for a real environment) that is layered on top at install time.
+
+```bash
+scripts/overlay.py init ~/agents-overlay-work --name work   # scaffold from templates/overlay-example
+scripts/overlay.py add work <git-url> --priority 60          # register and clone
+scripts/overlay.py install work                              # symlink content, re-render settings
+scripts/overlay.py status                                    # drift check
+```
+
+An overlay contributes memory, instructions, commands, sub-agents and skills as symlinks, merges `settings/claude.json` and `mcp/servers.json` into their rendered counterparts, and can symlink anything else through a `links` map in its manifest. Multiple overlays coexist; `priority` decides who wins on a shared key.
+
+Because Claude Code writes runtime state into `~/.claude/settings.json` — which is this repo's `claude/settings.json` — that file and `shared/mcp/servers.json` are render artifacts and are not tracked. Edit `claude/settings.base.json` or `shared/mcp/servers.base.json` for anything that should be public and shared, or an overlay for anything that should not. Full design in [docs/overlay.md](docs/overlay.md).
 
 ## Adding new content
 

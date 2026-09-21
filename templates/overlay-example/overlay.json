@@ -1,0 +1,5 @@
+{
+  "name": "example",
+  "priority": 50,
+  "description": "Template overlay. Copy it with scripts/overlay.py init, then fill in your own environment."
+}

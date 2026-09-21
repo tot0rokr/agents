@@ -1,0 +1,10 @@
+{
+  "servers": {
+    "example-internal": {
+      "description": "Placeholder for an MCP server that only exists inside one environment.",
+      "url": "https://mcp.${INTERNAL_GIT_HOST}/mcp",
+      "transport": "http",
+      "enabled": false
+    }
+  }
+}

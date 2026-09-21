@@ -69,11 +69,30 @@ PY
   fi
 }
 
-parse_json "$REPO_ROOT/claude/settings.json"
+if [[ -f "$REPO_ROOT/claude/settings.json" ]]; then
+  parse_json "$REPO_ROOT/claude/settings.json"
+else
+  echo "SKIP  $REPO_ROOT/claude/settings.json not rendered yet (scripts/render_settings.py)"
+fi
+parse_json "$REPO_ROOT/claude/settings.base.json"
 parse_json "$REPO_ROOT/opencode/opencode.json"
 parse_json "$REPO_ROOT/gemini/settings.json"
 parse_json "$REPO_ROOT/shared/mcp/servers.json"
 parse_toml "$REPO_ROOT/codex/config.toml"
+
+echo
+echo "== overlays (see docs/overlay.md) =="
+if python3 "$REPO_ROOT/scripts/render_settings.py" --check >/dev/null 2>&1; then
+  echo "OK    settings.base.json tracks no local-only keys"
+else
+  echo "FAIL  settings.base.json tracks local-only keys — run scripts/render_settings.py --check"
+  fail=1
+fi
+if python3 "$REPO_ROOT/scripts/overlay.py" status >/dev/null 2>&1; then
+  echo "OK    overlay links and settings render are in sync"
+else
+  echo "WARN  overlay drift — run scripts/overlay.py status"
+fi
 
 echo
 echo "== home-dir links (run scripts/install.sh to create) =="
