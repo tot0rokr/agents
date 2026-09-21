@@ -5,15 +5,19 @@ A skeleton for one environment's slice of the [agents harness](https://github.co
 Scaffold your own copy rather than editing this directory in place:
 
 ```bash
-scripts/overlay.py init ~/agents-overlay-personal --name personal
+scripts/overlay.py init personal      # creates overlays/personal
 ```
 
-Then `git init`, commit, push to a remote, and register it:
+Then make it a repo, push it somewhere private, and register it:
 
 ```bash
-scripts/overlay.py add personal <git-url>
-scripts/overlay.py install personal
+cd overlays/personal
+git init -b main && git add -A && git commit -m "initial overlay"
+git remote add origin <private-url> && git push -u origin main
+cd ../.. && scripts/overlay.py add personal && scripts/overlay.py install personal
 ```
+
+`overlays/` is gitignored by the harness repo, so your overlay lives beside the base tree without being tracked by it.
 
 ## What goes where
 

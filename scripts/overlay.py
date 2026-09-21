@@ -281,22 +281,36 @@ def cmd_add(repo_root: Path, args, log) -> int:
 
     entry = Overlay(
         alias=args.alias,
-        url=args.url,
+        url=args.url or "",
         ref=args.ref,
         priority=args.priority,
         repo_root=repo_root,
     )
+
     if entry.path.exists():
-        raise OverlayError(f"{entry.path} already exists")
-
-    entry.path.parent.mkdir(parents=True, exist_ok=True)
-    clone = ["clone", "--branch", args.ref, args.url, str(entry.path)]
-    log(f"RUN   git {' '.join(clone)}")
-    _git(clone)
-
-    if not entry.cloned:
-        shutil.rmtree(entry.path, ignore_errors=True)
-        raise OverlayError(f"{args.url} has no {MANIFEST_NAME} — not an overlay repo")
+        # The clone is already in place — the authoring machine, or a checkout
+        # the user put there by hand. Register it instead of cloning over it.
+        if not entry.cloned:
+            raise OverlayError(f"{entry.path} exists but has no {MANIFEST_NAME}")
+        origin = _git(["remote", "get-url", "origin"], cwd=entry.path)
+        if args.url and args.url != origin:
+            raise OverlayError(
+                f"{entry.path} already tracks {origin}, not {args.url} — "
+                "move it aside or drop the url argument"
+            )
+        entry.url = args.url or origin
+        entry.ref = _git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=entry.path)
+        log(f"FOUND {entry.path} ({entry.url} @ {entry.ref})")
+    else:
+        if not args.url:
+            raise OverlayError(f"nothing at {entry.path} — pass a git url to clone")
+        entry.path.parent.mkdir(parents=True, exist_ok=True)
+        clone = ["clone", "--branch", args.ref, args.url, str(entry.path)]
+        log(f"RUN   git {' '.join(clone)}")
+        _git(clone)
+        if not entry.cloned:
+            shutil.rmtree(entry.path, ignore_errors=True)
+            raise OverlayError(f"{args.url} has no {MANIFEST_NAME} — not an overlay repo")
 
     overlays.append(entry)
     save_registry(repo_root, overlays)
@@ -437,7 +451,10 @@ def cmd_init(repo_root: Path, args, log) -> int:
     if not template.is_dir():
         raise OverlayError(f"template missing: {TEMPLATE_REL}")
 
-    dest = Path(args.dest).expanduser().resolve()
+    # A bare alias scaffolds in place under overlays/; a path goes where it says.
+    raw = args.dest
+    dest = repo_root / OVERLAYS_REL / raw if "/" not in raw else Path(raw).expanduser()
+    dest = dest.resolve()
     if dest.exists():
         raise OverlayError(f"{dest} already exists")
 
@@ -449,8 +466,9 @@ def cmd_init(repo_root: Path, args, log) -> int:
     manifest_path.write_text(dumps(manifest))
 
     log(f"scaffolded overlay '{name}' at {dest}")
-    log("next: git init && git add -A && git commit, push to a private remote,")
-    log(f"      then: scripts/overlay.py add {name} <git-url>")
+    log(f"next: cd {dest} && git init -b main && git add -A && git commit")
+    log("      add a private remote and push, then back in the harness repo:")
+    log(f"      scripts/overlay.py add {name} && scripts/overlay.py install {name}")
     return 0
 
 
@@ -459,9 +477,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--repo", type=Path, default=None, help="override repo root")
     sub = p.add_subparsers(dest="command", required=True)
 
-    add = sub.add_parser("add", help="register and clone an overlay repo")
+    add = sub.add_parser("add", help="register an overlay repo, cloning it if absent")
     add.add_argument("alias")
-    add.add_argument("url")
+    add.add_argument("url", nargs="?", help="omit when overlays/<alias> is already a clone")
     add.add_argument("--ref", default="main")
     add.add_argument("--priority", type=int, default=50)
     add.set_defaults(func=cmd_add)
@@ -486,7 +504,7 @@ def build_parser() -> argparse.ArgumentParser:
     remove.set_defaults(func=cmd_remove)
 
     init = sub.add_parser("init", help="scaffold a new overlay repo from the template")
-    init.add_argument("dest")
+    init.add_argument("dest", help="an alias (scaffolds overlays/<alias>) or an explicit path")
     init.add_argument("--name", default=None)
     init.set_defaults(func=cmd_init)
 

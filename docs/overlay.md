@@ -73,7 +73,7 @@ Editing `claude/settings.json` by hand still works — the edit survives as unma
 ## Commands
 
 ```
-scripts/overlay.py add <alias> <git-url> [--ref REF] [--priority N]
+scripts/overlay.py add <alias> [<git-url>] [--ref REF] [--priority N]
 scripts/overlay.py install [<alias> | --all]
 scripts/overlay.py list
 scripts/overlay.py status
@@ -82,7 +82,7 @@ scripts/overlay.py remove <alias> [--purge]
 scripts/overlay.py init <dir> [--name NAME]
 ```
 
-`add` registers and clones. `install` applies. `update` pulls and re-applies. `remove` unlinks what the overlay contributed and re-renders; `--purge` also deletes the clone. `init` scaffolds a new overlay from `templates/overlay-example/`.
+`add` registers an overlay, cloning it into `overlays/<alias>` when nothing is there yet. When the clone is already in place — the machine the overlay was authored on, or one where you cloned it by hand — leave the URL off and it registers what it finds, taking the URL and ref from the clone itself. `install` applies. `update` pulls and re-applies. `remove` unlinks what the overlay contributed and re-renders; `--purge` also deletes the clone. `init` scaffolds from `templates/overlay-example/`, into `overlays/<alias>` for a bare alias or wherever a path points.
 
 ## State files
 
@@ -94,15 +94,25 @@ Both live under `overlays/`, which is gitignored in full:
 ## Setting one up
 
 ```bash
-scripts/overlay.py init ~/agents-overlay-personal --name personal
-cd ~/agents-overlay-personal && git init && git add -A && git commit -m "initial overlay"
-# push to a private remote, then:
-cd ~/agents
-scripts/overlay.py add personal <git-url>
+scripts/overlay.py init personal                  # scaffolds overlays/personal
+cd overlays/personal
+git init -b main && git add -A && git commit -m "initial overlay"
+git remote add origin <private-url> && git push -u origin main
+cd ../..
+scripts/overlay.py add personal                   # url comes from the clone
 scripts/overlay.py install personal
 ```
 
-For a work environment, host the overlay on the employer's git server and register it the same way. Internal details never reach github.com.
+The overlay lives inside the harness repo, at `overlays/<alias>`, and `overlays/` is gitignored in full — so a private overlay sits next to the base tree without ever being tracked by it. Edit and push it from there; the harness reads it in place.
+
+On another machine the same overlay arrives by URL instead:
+
+```bash
+scripts/overlay.py add personal <private-url>
+scripts/overlay.py install personal
+```
+
+For a work environment, host it on the employer's git server. Internal details never reach github.com. One consequence of nesting worth knowing: anything that copies `~/agents` wholesale — a backup, an rsync, a re-clone by directory copy — carries the private overlay with it.
 
 ## MCP servers
 

@@ -96,11 +96,14 @@ point at this repo are skipped.
 This repo is public, so nothing environment-specific belongs in it — no employer hostnames, internal remotes, project names, IPs, ports or account IDs. Those live in a separate overlay repo (private for a real environment) that is layered on top at install time.
 
 ```bash
-scripts/overlay.py init ~/agents-overlay-work --name work   # scaffold from templates/overlay-example
-scripts/overlay.py add work <git-url> --priority 60          # register and clone
-scripts/overlay.py install work                              # symlink content, re-render settings
-scripts/overlay.py status                                    # drift check
+scripts/overlay.py init work                 # scaffolds overlays/work from the template
+scripts/overlay.py add work --priority 60    # register what is already at overlays/work
+scripts/overlay.py add work <git-url>        # or clone it there first, on another machine
+scripts/overlay.py install work              # symlink content, re-render settings and MCP
+scripts/overlay.py status                    # drift check
 ```
+
+Overlays live at `overlays/<alias>` inside this repo, and `overlays/` is gitignored in full, so a private overlay sits next to the base tree without the base ever tracking it.
 
 An overlay contributes memory, instructions, commands, sub-agents and skills as symlinks, merges `settings/claude.json` and `mcp/servers.json` into their rendered counterparts, and can symlink anything else through a `links` map in its manifest. Multiple overlays coexist; `priority` decides who wins on a shared key.
 
