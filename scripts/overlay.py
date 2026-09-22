@@ -40,6 +40,10 @@ LINK_MAP = (
 
 ALIAS_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 
+# memory/MEMORY.md is the index fragment the renderer concatenates, not a
+# memory file to drop in beside the others.
+LINK_SKIP = {("memory", "MEMORY.md")}
+
 # Setup steps an overlay cannot express as files: credentials, daemons, tokens.
 DEFAULT_AGENT_TOOLS = ("Bash", "Read", "Edit", "Write", "Glob", "Grep")
 AGENT_GUARDRAIL = (
@@ -185,6 +189,8 @@ def _planned_links(overlay: Overlay) -> list[tuple[Path, Path]]:
         dst_dir = overlay.repo_root / dst_rel
         items = sorted(src_dir.glob(pattern)) if pattern else sorted(p for p in src_dir.iterdir() if p.is_dir())
         for item in items:
+            if (src_rel, item.name) in LINK_SKIP:
+                continue
             pairs.append((item, dst_dir / item.name))
 
     # Escape hatch for anything the fixed namespaces don't cover.
@@ -407,7 +413,8 @@ def cmd_status(repo_root: Path, args, log) -> int:
             if not merged:
                 continue
             artifact = repo_root / rel
-            if not artifact.is_file() or artifact.read_text() != dumps(merged):
+            expected = merged if isinstance(merged, str) else dumps(merged)
+            if not artifact.is_file() or artifact.read_text() != expected:
                 log(f"DRIFT {rel} differs from a fresh render — run 'overlay.py install'")
                 problems += 1
 

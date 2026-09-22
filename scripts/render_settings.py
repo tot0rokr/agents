@@ -26,6 +26,10 @@ MCP_BASE_REL = "shared/mcp/servers.base.json"
 MCP_LIVE_REL = "shared/mcp/servers.json"
 MCP_FRAGMENT_REL = "mcp/servers.json"
 
+MEMORY_BASE_REL = "shared/memory/MEMORY.base.md"
+MEMORY_LIVE_REL = "shared/memory/MEMORY.md"
+MEMORY_FRAGMENT_REL = "memory/MEMORY.md"
+
 # Written by Claude Code at runtime and environment-describing. Never tracked.
 LOCAL_ONLY_KEYS = ("autoMode",)
 
@@ -118,7 +122,8 @@ def _load_state(repo_root: Path) -> set[KeyPath]:
 def _save_state(repo_root: Path, managed: set[KeyPath]) -> None:
     state = repo_root / STATE_REL
     state.parent.mkdir(parents=True, exist_ok=True)
-    payload = {"managed": sorted(list(path) for path in managed)}
+    payload = json.loads(state.read_text()) if state.is_file() else {}
+    payload["managed"] = sorted(list(path) for path in managed)
     state.write_text(dumps(payload))
 
 
@@ -179,10 +184,79 @@ def render_mcp(repo_root: Path, fragments: list[dict] | None = None, write: bool
     return merged
 
 
-def render_all(repo_root: Path, write: bool = True) -> dict[str, dict]:
+def render_memory(repo_root: Path, write: bool = True) -> str:
+    """Concatenate the memory index: base, then each overlay's fragment.
+
+    The index is a flat list of pointer lines, and the agents append to it at
+    runtime, so lines the live file has and no source claims are carried over —
+    the line-level equivalent of what `preserve_unmanaged` does for settings.
+    """
+    base_path = repo_root / MEMORY_BASE_REL
+    if not base_path.is_file():
+        return ""
+
+    sections = [base_path.read_text().rstrip("\n")]
+    managed: set[str] = set()
+    for line in sections[0].splitlines():
+        managed.add(line.strip())
+
+    for entry in _memory_fragments(repo_root):
+        text = entry.rstrip("\n")
+        if not text:
+            continue
+        sections.append(text)
+        for line in text.splitlines():
+            managed.add(line.strip())
+
+    live_path = repo_root / MEMORY_LIVE_REL
+    if live_path.is_file():
+        previous = _load_memory_state(repo_root)
+        carried = [
+            line
+            for line in live_path.read_text().splitlines()
+            if line.strip() and line.strip() not in managed and line.strip() not in previous
+        ]
+        if carried:
+            sections.append("\n".join(carried))
+
+    rendered = "\n\n".join(sections) + "\n"
+    if write:
+        _write_atomic(live_path, rendered)
+        _save_memory_state(repo_root, managed)
+    return rendered
+
+
+def _memory_fragments(repo_root: Path) -> list[str]:
+    from overlay import enabled_overlays
+
+    out = []
+    for entry in enabled_overlays(repo_root):
+        fragment = entry.path / MEMORY_FRAGMENT_REL
+        if fragment.is_file():
+            out.append(substitute(fragment.read_text(), entry.variables()))
+    return out
+
+
+def _load_memory_state(repo_root: Path) -> set[str]:
+    state = repo_root / STATE_REL
+    if not state.is_file():
+        return set()
+    return set(json.loads(state.read_text()).get("memoryLines", []))
+
+
+def _save_memory_state(repo_root: Path, managed: set[str]) -> None:
+    state = repo_root / STATE_REL
+    state.parent.mkdir(parents=True, exist_ok=True)
+    payload = json.loads(state.read_text()) if state.is_file() else {}
+    payload["memoryLines"] = sorted(managed)
+    state.write_text(dumps(payload))
+
+
+def render_all(repo_root: Path, write: bool = True) -> dict[str, dict | str]:
     return {
         LIVE_REL: render(repo_root, write=write),
         MCP_LIVE_REL: render_mcp(repo_root, write=write),
+        MEMORY_LIVE_REL: render_memory(repo_root, write=write),
     }
 
 

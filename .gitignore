@@ -12,6 +12,7 @@ overlays/
 # is exactly what must not reach a public repo.
 claude/settings.json
 shared/mcp/servers.json
+shared/memory/MEMORY.md
 
 # PyPI credentials — must NEVER end up in this repo. Belt-and-suspenders
 # alongside the canonical ~/.pypirc location.
@@ -114,3 +115,10 @@ mcp/**/*.egg-info/
 
 # claude-account-switcher install.sh backups (~/.claude symlinks into this repo)
 *.pre-claude-auto.*.bak
+
+# >>> worklog >>>
+claude/worklog/
+# <<< worklog <<<
+
+# pre-compact-branch hook state (machine-local registry)
+claude/hooks/state/

@@ -37,7 +37,7 @@ See [instructions/notifications.md](./instructions/notifications.md).
 
 ## Personal context
 
-See [instructions/personal.md](./instructions/personal.md).
+See [instructions/personal.md](./instructions/personal.md) — supplied by an overlay, so it is absent on a machine that has none. See [docs/overlay.md](../docs/overlay.md).
 
 ## Long-term memory
 
