@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from install import Mkdir, Symlink
-from render_settings import dumps, render_all
+from render_settings import dumps, render_all, substitute
 
 OVERLAYS_REL = "overlays"
 REGISTRY_REL = "overlays/registry.local.json"
@@ -39,6 +39,16 @@ LINK_MAP = (
 )
 
 ALIAS_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
+
+# Setup steps an overlay cannot express as files: credentials, daemons, tokens.
+DEFAULT_AGENT_TOOLS = ("Bash", "Read", "Edit", "Write", "Glob", "Grep")
+AGENT_GUARDRAIL = (
+    "You are completing one setup step for an agents-harness overlay, on the user's machine. "
+    "Do exactly that step and nothing else. Never modify tracked files in the base harness repo, "
+    "never commit or push, and never write a secret into any git repository. "
+    "If the step needs a credential or a decision only the user can supply, stop and say BLOCKED "
+    "with what you need. When the step is done, verify it and say DONE."
+)
 
 
 class OverlayError(RuntimeError):
@@ -292,15 +302,18 @@ def cmd_add(repo_root: Path, args, log) -> int:
         # the user put there by hand. Register it instead of cloning over it.
         if not entry.cloned:
             raise OverlayError(f"{entry.path} exists but has no {MANIFEST_NAME}")
-        origin = _git(["remote", "get-url", "origin"], cwd=entry.path)
-        if args.url and args.url != origin:
+        try:
+            origin = _git(["remote", "get-url", "origin"], cwd=entry.path)
+        except OverlayError:
+            origin = ""  # scaffolded locally and not pushed anywhere yet
+        if args.url and origin and args.url != origin:
             raise OverlayError(
                 f"{entry.path} already tracks {origin}, not {args.url} — "
                 "move it aside or drop the url argument"
             )
         entry.url = args.url or origin
         entry.ref = _git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=entry.path)
-        log(f"FOUND {entry.path} ({entry.url} @ {entry.ref})")
+        log(f"FOUND {entry.path} ({entry.url or 'no remote yet'} @ {entry.ref})")
     else:
         if not args.url:
             raise OverlayError(f"nothing at {entry.path} — pass a git url to clone")
@@ -398,9 +411,141 @@ def cmd_status(repo_root: Path, args, log) -> int:
                 log(f"DRIFT {rel} differs from a fresh render — run 'overlay.py install'")
                 problems += 1
 
+    for overlay in enabled_overlays(repo_root):
+        for step in overlay.manifest().get("setup", []):
+            if _run_check(repo_root, overlay, step) is False:
+                log(f"SETUP {overlay.alias}/{step['id']} pending — run 'overlay.py setup {overlay.alias}'")
+                problems += 1
+
     if problems == 0:
         log(f"overlay: clean ({len(applied)} link(s))")
     return 1 if problems else 0
+
+
+def _step_env(overlay: Overlay) -> dict:
+    env = dict(os.environ)
+    env.update({k: str(v) for k, v in overlay.variables().items()})
+    return env
+
+
+def _run_check(repo_root: Path, overlay: Overlay, step: dict) -> bool | None:
+    """True = already satisfied, False = pending, None = step declares no check."""
+    command = step.get("check")
+    if not command:
+        return None
+    proc = subprocess.run(
+        ["bash", "-c", command],
+        cwd=str(repo_root),
+        env=_step_env(overlay),
+        capture_output=True,
+        text=True,
+    )
+    return proc.returncode == 0
+
+
+def _agent_command(repo_root: Path, overlay: Overlay, step: dict, args) -> list[str]:
+    prompt_path = overlay.path / step["agent"]
+    if not prompt_path.is_file():
+        raise OverlayError(f"{overlay.alias}/{step['id']}: agent prompt missing: {step['agent']}")
+    prompt = substitute(prompt_path.read_text(), overlay.variables())
+    tools = list(step.get("allowedTools") or DEFAULT_AGENT_TOOLS)
+
+    cmd = ["claude"]
+    if not args.interactive:
+        cmd += ["-p", "--output-format", "json"]
+    cmd += [
+        "--permission-mode", args.permission_mode,
+        "--add-dir", str(overlay.path),
+        "--allowedTools", *tools,
+        "--append-system-prompt", AGENT_GUARDRAIL,
+    ]
+    if args.model:
+        cmd += ["--model", args.model]
+    return cmd + [prompt]
+
+
+def _run_step(repo_root: Path, overlay: Overlay, step: dict, args, log) -> str:
+    label = f"{overlay.alias}/{step['id']}"
+
+    if step.get("run"):
+        log(f"RUN   {label}: {step['run']}")
+        proc = subprocess.run(
+            ["bash", "-c", step["run"]],
+            cwd=str(repo_root),
+            env=_step_env(overlay),
+        )
+        if proc.returncode != 0:
+            return "failed"
+    elif step.get("agent"):
+        cmd = _agent_command(repo_root, overlay, step, args)
+        log(f"AGENT {label}: claude {'-p ' if not args.interactive else ''}<{step['agent']}>")
+        proc = subprocess.run(
+            cmd,
+            cwd=str(repo_root),
+            env=_step_env(overlay),
+            capture_output=not args.interactive,
+            text=True,
+        )
+        if not args.interactive:
+            try:
+                payload = json.loads(proc.stdout or "{}")
+                log(f"      {payload.get('result', proc.stdout).strip()[:2000]}")
+            except json.JSONDecodeError:
+                log(f"      {(proc.stdout or proc.stderr).strip()[:2000]}")
+        if proc.returncode != 0:
+            return "failed"
+    else:
+        log(f"MANUAL {label}: {step.get('manual', 'no instructions supplied')}")
+        return "manual"
+
+    return "ok" if _run_check(repo_root, overlay, step) is not False else "unverified"
+
+
+def cmd_setup(repo_root: Path, args, log) -> int:
+    overlays = enabled_overlays(repo_root)
+    if args.alias:
+        overlays = [o for o in overlays if o.alias == args.alias]
+        if not overlays:
+            raise OverlayError(f"no enabled overlay registered as '{args.alias}'")
+
+    plan: list[tuple[Overlay, dict, bool | None]] = []
+    for overlay in overlays:
+        for step in overlay.manifest().get("setup", []):
+            if args.only and step.get("id") not in args.only:
+                continue
+            plan.append((overlay, step, _run_check(repo_root, overlay, step)))
+
+    if not plan:
+        log("setup: no steps declared")
+        return 0
+
+    log(f"{'STEP':<28} {'STATE':<9} HOW")
+    for overlay, step, state in plan:
+        how = "run" if step.get("run") else "agent" if step.get("agent") else "manual"
+        label = "ok" if state else "pending" if state is False else "unknown"
+        log(f"{overlay.alias + '/' + step['id']:<28} {label:<9} {how}: {step.get('description', '')}")
+
+    pending = [(o, s) for o, s, state in plan if state is not True]
+    if not pending:
+        log("setup: everything already satisfied")
+        return 0
+    if args.dry_run:
+        log(f"setup: {len(pending)} step(s) would run (dry run)")
+        return 0
+    if not args.yes:
+        raise OverlayError(
+            f"{len(pending)} step(s) pending. These run commands and agents from the overlay — "
+            "review them, then re-run with --yes"
+        )
+
+    results = {}
+    for overlay, step in pending:
+        results[f"{overlay.alias}/{step['id']}"] = _run_step(repo_root, overlay, step, args, log)
+
+    log("")
+    for label, outcome in results.items():
+        log(f"{outcome.upper():<11} {label}")
+    return 0 if all(v == "ok" for v in results.values()) else 1
 
 
 def cmd_update(repo_root: Path, args, log) -> int:
@@ -415,8 +560,11 @@ def cmd_update(repo_root: Path, args, log) -> int:
         if not overlay.cloned:
             log(f"SKIP  {overlay.alias} (not cloned)")
             continue
-        log(f"RUN   git -C {overlay.path} pull --ff-only")
-        _git(["pull", "--ff-only"], cwd=overlay.path)
+        if not overlay.url:
+            log(f"SKIP  {overlay.alias} (no remote — nothing to pull)")
+        else:
+            log(f"RUN   git -C {overlay.path} pull --ff-only")
+            _git(["pull", "--ff-only"], cwd=overlay.path)
         if overlay.enabled:
             applied = apply_overlay(repo_root, overlay, applied, log)
 
@@ -493,6 +641,24 @@ def build_parser() -> argparse.ArgumentParser:
 
     status = sub.add_parser("status", help="report link drift and render drift")
     status.set_defaults(func=cmd_status)
+
+    setup = sub.add_parser("setup", help="run the environment setup steps an overlay declares")
+    setup.add_argument("alias", nargs="?")
+    setup.add_argument("--only", nargs="*", default=None, help="limit to these step ids")
+    setup.add_argument("--dry-run", action="store_true", help="show the plan and stop")
+    setup.add_argument("--yes", action="store_true", help="run the pending steps")
+    setup.add_argument(
+        "--interactive",
+        action="store_true",
+        help="hand agent steps to a live claude session instead of claude -p",
+    )
+    setup.add_argument(
+        "--permission-mode",
+        default="acceptEdits",
+        choices=["acceptEdits", "auto", "plan", "dontAsk", "manual", "bypassPermissions"],
+    )
+    setup.add_argument("--model", default=None, help="model for agent steps")
+    setup.set_defaults(func=cmd_setup)
 
     update = sub.add_parser("update", help="pull overlay repos and re-apply")
     update.add_argument("alias", nargs="?")

@@ -77,12 +77,57 @@ scripts/overlay.py add <alias> [<git-url>] [--ref REF] [--priority N]
 scripts/overlay.py install [<alias> | --all]
 scripts/overlay.py list
 scripts/overlay.py status
+scripts/overlay.py setup [<alias>] [--dry-run] [--yes] [--only ID...] [--interactive]
 scripts/overlay.py update [<alias>]
 scripts/overlay.py remove <alias> [--purge]
 scripts/overlay.py init <dir> [--name NAME]
 ```
 
 `add` registers an overlay, cloning it into `overlays/<alias>` when nothing is there yet. When the clone is already in place — the machine the overlay was authored on, or one where you cloned it by hand — leave the URL off and it registers what it finds, taking the URL and ref from the clone itself. `install` applies. `update` pulls and re-applies. `remove` unlinks what the overlay contributed and re-renders; `--purge` also deletes the clone. `init` scaffolds from `templates/overlay-example/`, into `overlays/<alias>` for a bare alias or wherever a path points.
+
+## Setup steps
+
+Some of an environment cannot be expressed as files: a credential file the MCP server reads, a systemd unit, a `gh` login, a password that belongs in the environment rather than in any repo. An overlay declares those as `setup` steps in its manifest, and `overlay.py setup` works through them.
+
+```json
+{
+  "setup": [
+    {
+      "id": "atlassian-env",
+      "description": "Credential file the Atlassian MCP server reads",
+      "check": "test -f \"$CLAUDE_HOME/.local/mcp/atlassian/mcp-atlassian.env\"",
+      "agent": "setup/atlassian-env.md",
+      "allowedTools": ["Bash", "Read", "Write", "Edit"],
+      "manual": "Create an API token at <url>, then rerun"
+    }
+  ]
+}
+```
+
+`check` is the gate and the only part that ever runs on its own: exit 0 means satisfied, anything else means pending. `install`, `update` and `status` evaluate checks and report, and never execute a step. Steps are idempotent by construction — a satisfied check is skipped.
+
+A pending step is carried out by whichever of these it declares, in order: `run` (a shell command, for deterministic work), `agent` (a prompt file handed to Claude Code), or `manual` (text printed for the user, for anything a machine should not be doing on its own — collecting a secret, clicking through an SSO page). After `run` or `agent`, the check is re-evaluated, so the outcome is verified rather than assumed.
+
+Step commands and prompts see the overlay's `vars.json` as environment variables, and `${VAR}` in a prompt file is substituted before the agent sees it.
+
+### How the agent step runs
+
+```
+claude -p --output-format json \
+  --permission-mode acceptEdits \
+  --add-dir <overlay path> \
+  --allowedTools Bash Read Edit Write Glob Grep \
+  --append-system-prompt "<guardrail>" \
+  "<prompt file, ${VAR} substituted>"
+```
+
+The guardrail tells the agent to do that one step and nothing else, never to touch tracked files in the base repo, never to commit or push, never to write a secret into a repo, and to answer BLOCKED with what it needs rather than inventing a credential. `--allowedTools` narrows that further per step; the default is the list above.
+
+`--interactive` runs the same prompt in a live session instead of `-p`, which is what you want when the step needs a conversation — a token pasted in, a choice made, an error diagnosed. `--model` picks the model, `--permission-mode` is settable, and `bypassPermissions` is available but never the default.
+
+### Safety
+
+An overlay that can run commands is an overlay that can run *any* command, so nothing here happens implicitly. `overlay.py setup` prints the full plan first, and without `--yes` it refuses and exits non-zero; `--dry-run` shows the plan and stops. Read a new overlay's setup steps before you run them, the same way you would read an install script.
 
 ## State files
 

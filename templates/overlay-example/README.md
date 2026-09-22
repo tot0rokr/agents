@@ -31,7 +31,9 @@ cd ../.. && scripts/overlay.py add personal && scripts/overlay.py install person
 | `settings/claude.json` | `claude/settings.json` | deep merge |
 | `mcp/servers.json` | `shared/mcp/servers.json` | deep merge |
 | `links` in `overlay.json` | any repo-relative path | symlink |
-| `vars.json` | — | `${VAR}` values for JSON fragments |
+| `setup` in `overlay.json` | the machine itself | `overlay.py setup` (shell, agent or manual) |
+| `setup/*.md` | — | prompts for the agent steps |
+| `vars.json` | — | `${VAR}` values for JSON fragments and prompts |
 
 Filenames must not collide with the base repo or with another overlay. `overlay.py install` refuses to apply rather than clobbering something.
 

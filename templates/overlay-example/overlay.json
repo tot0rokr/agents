@@ -2,5 +2,14 @@
   "name": "example",
   "priority": 50,
   "description": "Template overlay. Copy it with scripts/overlay.py init, then fill in your own environment.",
-  "links": {}
+  "links": {},
+  "setup": [
+    {
+      "id": "example-step",
+      "description": "Placeholder for something this environment needs that is not a file",
+      "check": "test -f \"$HOME/.config/example-overlay/ready\"",
+      "agent": "setup/example-step.md",
+      "manual": "Describe here what a human has to do when no agent can: where to get the token, which page to click."
+    }
+  ]
 }

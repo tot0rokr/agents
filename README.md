@@ -100,6 +100,7 @@ scripts/overlay.py init work                 # scaffolds overlays/work from the 
 scripts/overlay.py add work --priority 60    # register what is already at overlays/work
 scripts/overlay.py add work <git-url>        # or clone it there first, on another machine
 scripts/overlay.py install work              # symlink content, re-render settings and MCP
+scripts/overlay.py setup work --dry-run      # what still needs setting up by hand or by agent
 scripts/overlay.py status                    # drift check
 ```
 
