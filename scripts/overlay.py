@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import sys
 from dataclasses import dataclass, field
+from fnmatch import fnmatch
 from pathlib import Path
 
 from install import Mkdir, Symlink
@@ -508,6 +509,53 @@ def _run_step(repo_root: Path, overlay: Overlay, step: dict, args, log) -> str:
     return "ok" if _run_check(repo_root, overlay, step) is not False else "unverified"
 
 
+def _remote_host(target: Path) -> str | None:
+    probe = target if target.is_dir() else target.parent
+    try:
+        root = _git(["rev-parse", "--show-toplevel"], cwd=probe)
+        url = _git(["remote", "get-url", "origin"], cwd=Path(root))
+    except OverlayError:
+        return None
+    match = re.search(r"(?:://|@)([^/:]+)", url)
+    return match.group(1) if match else None
+
+
+def _claims(overlay: Overlay, target: Path, host: str | None) -> bool:
+    claims = overlay.manifest().get("claims") or {}
+    if host and any(fnmatch(host, pattern) for pattern in claims.get("remotes", [])):
+        return True
+    for pattern in claims.get("paths", []):
+        expanded = str(Path(pattern).expanduser())
+        if fnmatch(str(target), expanded) or str(target).startswith(expanded.rstrip("/") + "/"):
+            return True
+    return False
+
+
+def cmd_route(repo_root: Path, args, log) -> int:
+    """Which overlay owns a piece of work — so records land in the right repo."""
+    target = Path(args.path).expanduser().resolve() if args.path else Path.cwd()
+    host = _remote_host(target)
+
+    candidates = enabled_overlays(repo_root)
+    matched = [o for o in candidates if _claims(o, target, host)]
+    if not matched:
+        matched = [o for o in candidates if (o.manifest().get("claims") or {}).get("default")]
+    winner = max(matched, key=lambda o: (o.priority, o.alias), default=None)
+
+    if winner is None:
+        raise OverlayError(f"no overlay claims {target}, and none is marked default")
+    if args.explain:
+        log(f"{target} (remote host: {host or 'none'}) -> {winner.alias}")
+    elif args.dir:
+        destination = winner.path / args.dir
+        if args.mkdir:
+            destination.mkdir(parents=True, exist_ok=True)
+        log(str(destination))
+    else:
+        log(winner.alias)
+    return 0
+
+
 def cmd_setup(repo_root: Path, args, log) -> int:
     overlays = enabled_overlays(repo_root)
     if args.alias:
@@ -648,6 +696,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     status = sub.add_parser("status", help="report link drift and render drift")
     status.set_defaults(func=cmd_status)
+
+    route = sub.add_parser("route", help="say which overlay owns a path, so records land in the right repo")
+    route.add_argument("path", nargs="?", help="defaults to the current directory")
+    route.add_argument("--dir", default=None, help="print <overlay>/<dir> instead of the alias")
+    route.add_argument("--mkdir", action="store_true", help="create that directory if missing")
+    route.add_argument("--explain", action="store_true", help="show the path, its remote host and the winner")
+    route.set_defaults(func=cmd_route)
 
     setup = sub.add_parser("setup", help="run the environment setup steps an overlay declares")
     setup.add_argument("alias", nargs="?")

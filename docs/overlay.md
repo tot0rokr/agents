@@ -85,6 +85,40 @@ scripts/overlay.py init <dir> [--name NAME]
 
 `add` registers an overlay, cloning it into `overlays/<alias>` when nothing is there yet. When the clone is already in place — the machine the overlay was authored on, or one where you cloned it by hand — leave the URL off and it registers what it finds, taking the URL and ref from the clone itself. `install` applies. `update` pulls and re-applies. `remove` unlinks what the overlay contributed and re-renders; `--purge` also deletes the clone. `init` scaffolds from `templates/overlay-example/`, into `overlays/<alias>` for a bare alias or wherever a path points.
 
+## Routing records to the right overlay
+
+Session summaries, journal entries and anything else written *about* a piece of work belong to whichever environment that work is part of — and the harness can decide that instead of a person deciding it every time. An overlay declares what it owns:
+
+```json
+{
+  "claims": {
+    "remotes": ["*.mangoboost.io"],
+    "paths": ["~/bsp-work", "~/softhsm"],
+    "default": false
+  }
+}
+```
+
+`remotes` matches the `origin` host of the git repo containing the path; `paths` matches the path itself, by glob or by prefix. `overlay.py route <path>` answers with the winning alias — highest priority among the overlays that claim it, or the one marked `default` when nothing claims it.
+
+```bash
+scripts/overlay.py route ~/softhsm                  # mangoboost
+scripts/overlay.py route ~/agents                   # personal
+scripts/overlay.py route --explain                  # …and why, for the current directory
+scripts/overlay.py route --dir session-logs --mkdir # the directory to write into
+```
+
+The routing is realised with links, so a tool that just writes to a fixed path still lands in the right repo. Each overlay owns a subdirectory of the records directory:
+
+```
+claude/session-logs/mangoboost -> overlays/mangoboost/session-logs
+claude/session-logs/personal   -> overlays/personal/session-logs
+```
+
+The parent stays a plain gitignored directory in the base, so anything written without routing sits there, local and untracked, until someone files it.
+
+What does *not* go into an overlay is the raw transcript. `~/.claude/projects` is hundreds of megabytes, grows with every conversation, and records every file read and command output verbatim — git would keep all of it forever, including whatever secret happened to be on screen. Summaries are the thing worth versioning.
+
 ## Setup steps
 
 Some of an environment cannot be expressed as files: a credential file the MCP server reads, a systemd unit, a `gh` login, a password that belongs in the environment rather than in any repo. An overlay declares those as `setup` steps in its manifest, and `overlay.py setup` works through them.
