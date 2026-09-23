@@ -6,7 +6,6 @@
 - [Push only when explicitly asked](feedback_push_only_when_asked.md) — never auto-push; push needs a fresh instruction each time (one "push" ≠ standing permission); on a branch's first push with multiple remotes, ask which remote
 - [No hard-wrap in markdown](feedback_no_hard_wrap_markdown.md) — don't break paragraphs/bullets into multiple lines; one logical line = one physical line
 - [Label evidence and sources](feedback_label_evidence_and_sources.md) — when analyzing/measuring, tag claims 실측/추정/가설/사실 and cite the source inline
-- [grep/find → rg/fd wrappers](project_grep_find_rg_fd_wrappers.md) — user's interactive shell aliases grep/find to translating functions (faithful mode, fallback to real tool); suspect these if grep/find "behaves differently"
 - [No bold overuse in docs](feedback_no_bold_overuse.md) — use bold sparingly, only for what truly needs emphasis; overuse hurts readability and drowns the real highlights
 - [Minimal comments, details in docs](feedback_minimal_comments_docs_separate.md) — comment only when needed (the non-obvious why); move usage/detailed explanations to separate docs/
 - [Always develop in a git worktree](feedback_always_use_worktree.md) — on any git project, work inside a worktree at `../프로젝트명-branch명`; never merge to main automatically — ask first, merge only after approval. EXCEPTION: the agents repo (`/home/junho/agents`) is symlinked to `~/.claude` for live sync → develop on `main` directly, no worktree
