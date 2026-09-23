@@ -15,5 +15,4 @@
 - [Rehydrate context after compact](feedback_rehydrate_context_after_compact.md) — after any compaction, immediately re-read prior conversation to refill ~30% context before acting; enforced by global PostCompact hook (~/.claude/hooks/post-compact-rehydrate.sh)
 - [Act on sensible defaults, don't over-ask](feedback_act_dont_over_ask.md) — pick the reasonable option, state what I did, and proceed; reserve AskUserQuestion for genuine forks (destructive/outward-facing or truly ambiguous intent)
 - [Always create project instructions](feedback_always_create_project_instructions.md) — when scaffolding a new project, always add a project-level CLAUDE.md (tool-neutral); don't rely on the global one alone
-- [CRD physical-attach patch](project_crd_physical_attach_patch.md) — junho-vm's Chrome Remote Desktop host is patched to dynamically attach to the live physical X session; package is apt-mark hold'd (unhold+repatch to update)
 - [Pasted-code refactor style](feedback_pasted_code_refactor_style.md) — work from the paste (no repo search), keep top-of-function declarations and Yoda style, don't turn if/else into ternary, never change logic
