@@ -16,28 +16,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$HOME/worklog/hooks/auto-ingest.sh\"",
-            "timeout": 20
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
             "command": "bash \"$HOME/.claude/hooks/pre-compact-branch.sh\"",
             "timeout": 120
-          }
-        ]
-      }
-    ],
-    "SessionEnd": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$HOME/worklog/hooks/auto-ingest.sh\"",
-            "timeout": 20
           }
         ]
       }
