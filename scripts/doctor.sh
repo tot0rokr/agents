@@ -95,6 +95,87 @@ else
 fi
 
 echo
+echo "== rendered configs carry no overlay content =="
+leak_report="$(python3 - "$REPO_ROOT" <<'PY'
+import json, sys
+from pathlib import Path
+
+repo = Path(sys.argv[1])
+TRACKED = ("codex/config.toml", "opencode/opencode.json", "gemini/settings.json")
+
+
+def servers(rel):
+    path = repo / rel
+    if not path.is_file():
+        return {}
+    try:
+        return json.loads(path.read_text()).get("servers") or {}
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+overlay_only = sorted(set(servers("shared/mcp/servers.json")) - set(servers("shared/mcp/servers.base.json")))
+if not overlay_only:
+    print("OK    no overlay-only MCP servers to leak")
+    raise SystemExit(0)
+
+hits = []
+for rel in TRACKED:
+    path = repo / rel
+    if not path.is_file():
+        continue
+    text = path.read_text()
+    found = [name for name in overlay_only if name in text]
+    if found:
+        hits.append(f"{rel}: {', '.join(found)}")
+
+if hits:
+    for hit in hits:
+        print(f"FAIL  overlay server in a tracked config — {hit}")
+    raise SystemExit(1)
+print(f"OK    {len(overlay_only)} overlay-only server(s) stayed out of the tracked configs")
+PY
+)" || fail=1
+echo "$leak_report"
+
+echo
+echo "== registered harness MCP entry =="
+claude_json="$HOME/.claude.json"
+if [[ -f "$claude_json" ]]; then
+  entry_cmd="$(python3 - "$claude_json" <<'PY'
+import json, sys
+try:
+    servers = json.load(open(sys.argv[1])).get("mcpServers") or {}
+except Exception:
+    raise SystemExit(0)
+for name, cfg in servers.items():
+    if "harness" in name:
+        print(" ".join([cfg.get("command", "")] + list(cfg.get("args") or [])))
+        break
+PY
+)"
+  if [[ -z "$entry_cmd" ]]; then
+    echo "SKIP  no harness MCP server registered in ~/.claude.json"
+  else
+    read -r -a entry_parts <<< "$entry_cmd"
+    if command -v "${entry_parts[0]}" >/dev/null 2>&1; then
+      echo "OK    registered as: $entry_cmd"
+    else
+      echo "FAIL  registered command not on PATH: ${entry_parts[0]}"
+      fail=1
+    fi
+    for part in "${entry_parts[@]}"; do
+      if [[ "$part" == /* && ! -e "$part" ]]; then
+        echo "FAIL  registered path does not exist: $part"
+        fail=1
+      fi
+    done
+  fi
+else
+  echo "SKIP  ~/.claude.json not present"
+fi
+
+echo
 echo "== home-dir links (run scripts/install.sh to create) =="
 check_home() {
   local target="$1" expected="$2"

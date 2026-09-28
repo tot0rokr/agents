@@ -397,6 +397,49 @@ def main() -> int:
     )
     check("commit fails cleanly without git", committed is not None and not committed.get("ok"))
 
+    section("K. render-mcp.sh is safe to run by hand")
+    # Someone will run the script directly, without the MCP package's scopes.
+    # It must still keep overlay servers out of the tracked configs and must not
+    # wipe a credential that only exists on this machine.
+    claude_json = HOME / ".claude.json"
+    claude_json.write_text(
+        json.dumps(
+            {
+                "keepMe": True,
+                "mcpServers": {
+                    # LOCAL_ONLY is defined nowhere else; PW is owned by the
+                    # overlay, so the render is supposed to win that one.
+                    "kb": {"command": "/opt/kb", "env": {"LOCAL_ONLY": "keep-me", "PW": "stale"}},
+                    "hand-registered": {"command": "/bin/true"},
+                },
+            },
+            indent=2,
+        )
+        + "\n"
+    )
+    script = REPO / "scripts" / "render-mcp.sh"
+    proc = subprocess.run(["bash", str(script)], cwd=str(REPO), capture_output=True, text=True)
+    check("render-mcp.sh exits 0", proc.returncode == 0, proc.stderr[-300:])
+
+    for rel in ("codex/config.toml", "gemini/settings.json", "opencode/opencode.json"):
+        text = (REPO / rel).read_text()
+        check(f"{rel} has no overlay server", "kb" not in text or "linear" in text and '"kb"' not in text, text[:160])
+        check(f"{rel} carries no credential", SECRET not in text)
+
+    live = json.loads(claude_json.read_text())
+    check("local config keeps unrelated top-level keys", live.get("keepMe") is True)
+    check("a hand-registered server is not dropped", "hand-registered" in live["mcpServers"])
+    check(
+        "a value only this machine has survives the script",
+        live["mcpServers"]["kb"]["env"].get("LOCAL_ONLY") == "keep-me",
+        json.dumps(live["mcpServers"]["kb"]),
+    )
+    check(
+        "a value the overlay owns is refreshed from it",
+        live["mcpServers"]["kb"]["env"].get("PW") == SECRET,
+        json.dumps(live["mcpServers"]["kb"]),
+    )
+
     print(f"\n{len(PASSED)} passed, {len(FAILED)} failed, {len(CRASHED)} crashed")
     if FAILED:
         print("failed: " + "; ".join(FAILED))

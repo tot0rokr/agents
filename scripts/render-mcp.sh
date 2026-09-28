@@ -36,7 +36,15 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+# Two sources, because the outputs have two audiences. servers.json is the
+# rendered, overlay-merged set: it may name an employer's internal servers and
+# carry their credentials, and it is the right thing for this machine's own
+# ~/.claude.json. The per-tool configs under codex/, gemini/ and opencode/ are
+# tracked in a public repo, so they are rendered from the base alone.
 SRC="$REPO_ROOT/shared/mcp/servers.json"
+PUBLIC_SRC="$REPO_ROOT/shared/mcp/servers.base.json"
+[[ -f "$PUBLIC_SRC" ]] || PUBLIC_SRC="$SRC"   # a repo from before the split
 
 [[ -f "$SRC" ]] || { echo "missing $SRC" >&2; exit 1; }
 command -v jq >/dev/null || { echo "jq is required" >&2; exit 1; }
@@ -82,6 +90,7 @@ def map_servers(f):
 '
 
 SERVERS_RAW="$(jq '.servers // {}' "$SRC")"
+PUBLIC_SERVERS_RAW="$(jq '.servers // {}' "$PUBLIC_SRC")"
 
 # --- Claude: $HOME/.claude.json .mcpServers ---
 # Claude Code's MCP servers live at the home-level `~/.claude.json`, not
@@ -91,9 +100,14 @@ SERVERS_RAW="$(jq '.servers // {}' "$SRC")"
 # of runtime state there — onboarding flags, project history, caches).
 CLAUDE_HOME_FILE="${HOME}/.claude.json"
 if [[ -f "$CLAUDE_HOME_FILE" ]]; then
+  # Merge rather than replace. A value that exists only on this machine — a
+  # password deliberately kept out of every repo — has to survive the render,
+  # and a server registered here by hand must not be dropped.
   tmp="$(mktemp)"
   jq --argjson s "$SERVERS_RAW" "$JQ_LIB"'
-    .mcpServers = ($s | map_servers(to_claude))
+    .mcpServers = ((.mcpServers // {}) as $cur
+      | $cur + (($s | map_servers(to_claude))
+                | with_entries(.value = (($cur[.key] // {}) * .value))))
   ' "$CLAUDE_HOME_FILE" > "$tmp" && mv "$tmp" "$CLAUDE_HOME_FILE"
   chmod 600 "$CLAUDE_HOME_FILE"
   echo "patched $CLAUDE_HOME_FILE (.mcpServers updated; other keys preserved)"
@@ -117,7 +131,7 @@ fi
 # --- Gemini: settings.json .mcpServers ---
 GEMINI_FILE="$REPO_ROOT/gemini/settings.json"
 tmp="$(mktemp)"
-jq --argjson s "$SERVERS_RAW" "$JQ_LIB"'
+jq --argjson s "$PUBLIC_SERVERS_RAW" "$JQ_LIB"'
   .mcpServers = ($s | map_servers(to_gemini))
 ' "$GEMINI_FILE" > "$tmp" && mv "$tmp" "$GEMINI_FILE"
 echo "wrote $GEMINI_FILE"
@@ -125,7 +139,7 @@ echo "wrote $GEMINI_FILE"
 # --- OpenCode: opencode.json .mcp ---
 OPENCODE_FILE="$REPO_ROOT/opencode/opencode.json"
 tmp="$(mktemp)"
-jq --argjson s "$SERVERS_RAW" "$JQ_LIB"'
+jq --argjson s "$PUBLIC_SERVERS_RAW" "$JQ_LIB"'
   .mcp = ($s | map_servers(to_opencode))
 ' "$OPENCODE_FILE" > "$tmp" && mv "$tmp" "$OPENCODE_FILE"
 echo "wrote $OPENCODE_FILE"
@@ -138,7 +152,7 @@ echo "wrote $OPENCODE_FILE"
 # — including `[projects."<path>"]` trust settings — is preserved in
 # its original order.
 CODEX_FILE="$REPO_ROOT/codex/config.toml"
-python3 - "$SRC" "$CODEX_FILE" <<'PY'
+python3 - "$PUBLIC_SRC" "$CODEX_FILE" <<'PY'
 import json, re, sys, pathlib
 
 src, dst = sys.argv[1], sys.argv[2]

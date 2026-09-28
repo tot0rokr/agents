@@ -28,12 +28,15 @@ Two scripts drive the container without a human in it.
 
 `e2e_v1.py` plays out what someone with a new laptop does — bootstrap the harness, add a private overlay from a local "internal" repo, change settings, add MCP servers, render every scope, route a path, scaffold content, run the overlay's setup steps, commit — and asserts the result on disk rather than trusting what the tools reported. It ends by scanning every tracked file for the overlay's credentials and hostname, which are generated fresh each run so no fixture string can satisfy or trip the check.
 
+Hand the container an archive of the tracked files rather than the working directory. A real machine has overlays with 0600 credentials and gigabytes of runtime state under `claude/`, none of which the container user can read or should see — and a fresh clone gets exactly the tracked files anyway.
+
 ```bash
 docker build -t agents-test -f test/Dockerfile .
-docker run --rm -v "$PWD:/src:ro" agents-test bash -lc '
+git ls-files -z | tar --null -cf /tmp/src.tar -T -      # working-tree versions
+docker run --rm -v /tmp/src.tar:/src.tar:ro agents-test bash -lc '
   git config --global user.name agent && git config --global user.email agent@test
-  cp -r /src /home/agent/source
-  cd /home/agent/source && rm -f .git && git init -q -b main && git add -A && git commit -qm snapshot
+  mkdir -p /home/agent/source && tar xf /src.tar -C /home/agent/source
+  cd /home/agent/source && git init -q -b main && git add -A && git commit -qm snapshot
   python3 /home/agent/source/test/e2e_v1.py'
 ```
 
