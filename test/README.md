@@ -42,6 +42,8 @@ docker run --rm -v /tmp/src.tar:/src.tar:ro agents-test bash -lc '
 
 `qa_v1.py` is the adversarial pass: path traversal through every name and path argument, corrupt and truncated state files, a registered overlay whose clone has been moved away, unwritable targets, an overlay whose `links` map points outside the repo, proof that setup steps never run except through `overlay_setup(yes=True)`, priority conflicts, idempotence, complete removal, a pre-overlay repo, unicode, and a repo with no `.git`. A tool is allowed to return an error; it is never allowed to raise.
 
+`qa_interference.py` answers one question and only that: does applying or removing an overlay ever drop a setting that was already there? Each case builds a concrete "before", applies the overlay, and reports what happened to every key instead of asserting what should have happened. Findings are labelled `PASS`, `by design` or `LOSS`, so a behaviour that merely surprises is distinguishable from one that loses data. It exits non-zero only on `LOSS`.
+
 Each script bootstraps into `$HOME`, so give each one its own `docker run` — two in the same container fight over the home symlinks.
 
 `e2e_mcp_protocol.py` speaks MCP over stdio to the installed server: initialize, `tools/list`, then real calls. The unit tests import the tool functions directly and never load `mcp`, so this is the only place a registration or schema problem shows up — and where a dependency that no longer exists under that name would. Run it against both majors:

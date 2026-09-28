@@ -201,6 +201,18 @@ Nothing writes `servers.json` at runtime, so it needs no unmanaged-key preservat
 
 Tokens and passwords do not belong in an overlay either. Reference them from the environment in the server definition and keep the values in your secret store.
 
+## What an overlay can and cannot overwrite
+
+Applying an overlay never deletes a setting that no source claims — `test/qa_interference.py` walks eight before-and-after scenarios and none of them loses data. Three behaviours do surprise people, though, and they are deliberate:
+
+A list is replaced, not appended to. If the base defines `hooks.Stop` and an overlay defines `hooks.Stop`, the overlay's list is what survives; sibling events like `hooks.PreCompact` are untouched. An overlay that wants to add one more Stop hook has to restate the base's. Only objects merge key by key.
+
+A key some source claims is restored from that source on the next render. Change `model` by hand in the rendered `settings.json` and the next render puts the base's value back — that is how a tracked setting stays tracked. Change it in `settings.base.json` or in an overlay instead. Keys no source claims, which is most of what Claude Code writes at runtime, are carried across untouched.
+
+Editing a rendered artifact is always temporary. `claude/settings.json`, `shared/mcp/servers.json` and `shared/memory/MEMORY.md` are outputs; a server added straight into `servers.json` disappears on the next render. Edit the `.base.` file or the overlay fragment.
+
+One rough edge worth knowing: if you edit a *base* line of `shared/memory/MEMORY.md` in place, the render keeps your edited line — it looks like a line no source claims — and restores the original alongside it, so the index ends up with both. Edit `MEMORY.base.md` or the overlay's fragment instead.
+
 ## Known gaps
 
 `render-mcp.sh` rewrites each tool's native config — for Claude Code, `~/.claude.json` — from the rendered `servers.json`. A server whose definition deliberately omits a secret (the BSP knowledge base leaves out `NEO4J_PASSWORD`) would have that value stripped from the live config on the next render. Until the renderer merges rather than replaces per-server `env` and `headers`, run it knowing that, and re-supply the secret afterwards.
