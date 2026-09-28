@@ -229,18 +229,45 @@ def apply_overlay(repo_root: Path, overlay: Overlay, applied: list[dict], log) -
 
     mine = {item["link"] for item in applied if item["alias"] == overlay.alias}
     others = {item["link"]: item["alias"] for item in applied if item["alias"] != overlay.alias}
+    ranks = {o.alias: _rank(o) for o in load_registry(repo_root)}
 
     planned = _planned_links(overlay)
     conflicts = []
+    deferred: dict[str, str] = {}   # link -> the overlay that outranks us
+    takeovers: dict[str, str] = {}  # link -> the overlay we outrank
     for source, target in planned:
         rel = str(target.relative_to(repo_root))
         if rel in others:
-            conflicts.append(f"{rel} (already provided by '{others[rel]}')")
+            # Two overlays want the same path. Priority decides it, exactly as
+            # it decides a shared JSON key — not whoever happened to install
+            # first. Ties break on alias, matching the render order.
+            holder = others[rel]
+            if ranks.get(holder, (0, holder)) > ranks.get(overlay.alias, _rank(overlay)):
+                deferred[rel] = holder
+            else:
+                takeovers[rel] = holder
         elif (target.exists() or target.is_symlink()) and rel not in mine:
             if not (target.is_symlink() and target.resolve() == source.resolve()):
                 conflicts.append(f"{rel} (base repo already has it)")
     if conflicts:
         raise OverlayError(f"{overlay.alias}: refusing to apply —\n  " + "\n  ".join(conflicts))
+
+    for rel, holder in sorted(deferred.items()):
+        log(f"DEFER {rel} stays with '{holder}' (higher priority)")
+    for rel, holder in sorted(takeovers.items()):
+        log(f"TAKE  {rel} from '{holder}' (lower priority)")
+        applied = [
+            item for item in applied
+            if not (item["alias"] == holder and item["link"] == rel)
+        ]
+        others.pop(rel, None)
+        _unlink(repo_root / rel, lambda _msg: None)
+
+    planned = [
+        (source, target)
+        for source, target in planned
+        if str(target.relative_to(repo_root)) not in deferred
+    ]
 
     ops = []
     links = [item for item in applied if item["alias"] != overlay.alias]
@@ -267,6 +294,11 @@ def apply_overlay(repo_root: Path, overlay: Overlay, applied: list[dict], log) -
         _unlink(repo_root / stale, log)
 
     return links
+
+
+def _rank(overlay: Overlay) -> tuple[int, str]:
+    """Who wins a contested path or key: higher priority, then later alias."""
+    return (overlay.priority, overlay.alias)
 
 
 def _unlink(target: Path, log) -> None:
@@ -652,6 +684,11 @@ def cmd_remove(repo_root: Path, args, log) -> int:
         raise OverlayError(f"no overlay registered as '{args.alias}'")
 
     applied = unapply_overlay(repo_root, args.alias, load_applied(repo_root), log)
+    # A path this overlay had taken from a lower-priority one falls back to it,
+    # rather than disappearing until someone runs install again.
+    for entry in enabled_overlays(repo_root):
+        if entry.alias != args.alias:
+            applied = apply_overlay(repo_root, entry, applied, log)
     save_applied(repo_root, applied)
     sync_git_exclude(repo_root, applied)
     save_registry(repo_root, [o for o in overlays if o.alias != args.alias])

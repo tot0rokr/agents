@@ -212,6 +212,80 @@ def main() -> int:
            "an existing base file is never overwritten",
            f"exit={result.returncode}, content={kept!r}")
 
+    print("\n== 9. does the order overlays are applied in change the outcome?")
+    for order in (("low", "high"), ("high", "low")):
+        fresh_repo({"model": "base-model"})
+        make_overlay("low", 10, settings={"shared": "from-low", "onlyLow": 1})
+        make_overlay("high", 90, settings={"shared": "from-high", "onlyHigh": 1})
+        for alias in order:
+            prio = "10" if alias == "low" else "90"
+            overlay_cli("add", alias, str(ORIGINS / alias), "--priority", prio)
+            overlay_cli("install", alias)
+        result = live()
+        record(
+            "PASS" if result.get("shared") == "from-high" else "LOSS",
+            f"settings: install order {order} still lets priority decide",
+            f"shared={result.get('shared')}, onlyLow={result.get('onlyLow')}, onlyHigh={result.get('onlyHigh')}",
+        )
+
+    fresh_repo({"model": "base-model"})
+    make_overlay("tie-a", 50, settings={"shared": "from-a"})
+    make_overlay("tie-b", 50, settings={"shared": "from-b"})
+    for alias in ("tie-b", "tie-a"):
+        overlay_cli("add", alias, str(ORIGINS / alias), "--priority", "50")
+    overlay_cli("install")
+    record("by design", "equal priority is broken by alias, not by install order",
+           f"shared={live().get('shared')} (alphabetically last alias wins)")
+
+    print("\n== 10. two overlays claiming the same file")
+    for first, second, label in (("low", "high", "low first, then high"),
+                                 ("high", "low", "high first, then low")):
+        fresh_repo({"model": "base-model"})
+        for alias, prio in (("low", 10), ("high", 90)):
+            make_overlay(alias, prio)
+            (ORIGINS / alias / "memory" / "contested.md").write_text(
+                f"---\nname: contested\n---\n\nfrom {alias}\n"
+            )
+            git(ORIGINS / alias, "add", "-A")
+            git(ORIGINS / alias, "commit", "-qm", "contested")
+        for alias in (first, second):
+            prio = "10" if alias == "low" else "90"
+            overlay_cli("add", alias, str(ORIGINS / alias), "--priority", prio)
+        r1 = overlay_cli("install", first)
+        r2 = overlay_cli("install", second)
+        link = REPO / "shared" / "memory" / "contested.md"
+        owner = link.resolve().parent.parent.name if link.is_symlink() else "none"
+        record(
+            "by design" if r2.returncode != 0 else "PASS",
+            f"files: {label}",
+            f"second install exit={r2.returncode}, owner={owner}",
+        )
+
+    print("\n== 11. appending to a list instead of replacing it")
+    fresh_repo({"hooks": {"Stop": [{"id": "base-stop"}]}, "permissions": {"allow": ["base-rule"]}})
+    make_overlay("adder", 60, settings={"hooks": {"Stop+": [{"id": "overlay-stop"}]},
+                                        "permissions": {"allow+": ["overlay-rule"]}})
+    overlay_cli("add", "adder", str(ORIGINS / "adder"), "--priority", "60")
+    overlay_cli("install", "adder")
+    result = live()
+    stop_ids = [h.get("id") for h in result["hooks"]["Stop"]]
+    record("PASS" if stop_ids == ["base-stop", "overlay-stop"] else "LOSS",
+           "a `key+` fragment appends in source order", f"Stop={stop_ids}")
+    record("PASS" if result["permissions"]["allow"] == ["base-rule", "overlay-rule"] else "LOSS",
+           "the same works for a nested list", str(result["permissions"]["allow"]))
+    record("PASS" if "Stop+" not in result["hooks"] else "LOSS",
+           "the `+` key does not survive into the artifact", str(list(result["hooks"])))
+
+    fresh_repo({"model": "base-model"})
+    make_overlay("first", 10, settings={"hooks": {"Stop+": [{"id": "from-low"}]}})
+    make_overlay("second", 90, settings={"hooks": {"Stop+": [{"id": "from-high"}]}})
+    for alias, prio in (("second", "90"), ("first", "10")):
+        overlay_cli("add", alias, str(ORIGINS / alias), "--priority", prio)
+    overlay_cli("install")
+    ids = [h.get("id") for h in live()["hooks"]["Stop"]]
+    record("PASS" if ids == ["from-low", "from-high"] else "LOSS",
+           "two overlays appending land in priority order, not install order", f"Stop={ids}")
+
     print(f"\n{sum(1 for v, _, _ in FINDINGS if v == 'PASS')} pass, "
           f"{sum(1 for v, _, _ in FINDINGS if v == 'by design')} by design, "
           f"{sum(1 for v, _, _ in FINDINGS if v == 'LOSS')} loss")

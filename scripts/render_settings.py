@@ -48,11 +48,42 @@ def dumps(obj: Any) -> str:
 
 
 def deep_merge(base: dict, patch: dict) -> dict:
+    """Objects merge key by key; lists replace — unless the key asks to append.
+
+    A source that wants to add to a list rather than own it writes the key with
+    a trailing `+`:
+
+        {"hooks": {"Stop+": [{...}]}}
+
+    which appends to whatever `hooks.Stop` holds so far, in source order, and
+    leaves the key itself named `Stop`. Without that, an overlay adding one
+    hook would have to restate every hook the base defines.
+    """
     out = dict(base)
     for key, val in patch.items():
+        if key.endswith("+") and len(key) > 1:
+            target = key[:-1]
+            current = out.get(target)
+            if isinstance(current, list) and isinstance(val, list):
+                out[target] = current + val
+            elif isinstance(current, dict) and isinstance(val, dict):
+                out[target] = deep_merge(current, val)
+            else:
+                out[target] = _normalize(val)
+            continue
         cur = out.get(key)
-        out[key] = deep_merge(cur, val) if isinstance(cur, dict) and isinstance(val, dict) else val
+        if isinstance(cur, dict) and isinstance(val, dict):
+            out[key] = deep_merge(cur, val)
+        else:
+            # Even when nothing is there to merge with, a nested `key+` has to
+            # lose its marker — otherwise the next source appends to a key that
+            # does not exist yet and the first source's list is dropped.
+            out[key] = _normalize(val)
     return out
+
+
+def _normalize(value):
+    return deep_merge({}, value) if isinstance(value, dict) else value
 
 
 def substitute(obj: Any, variables: dict[str, str]) -> Any:

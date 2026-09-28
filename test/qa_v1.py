@@ -301,14 +301,20 @@ def main() -> int:
     git(collide, "add", "-A")
     git(collide, "commit", "-qm", "collide")
     overlay.overlay_add("collide", url=str(collide), priority=80, repo_path=R)
-    conflict = survives("install a colliding overlay", overlay.overlay_install, "collide", repo_path=R)
-    check("a name two overlays supply is refused", conflict is not None and not conflict["ok"], str(conflict)[:200])
+    contested = REPO / "shared" / "memory" / "work_note.md"
+    taken = survives("install a colliding overlay", overlay.overlay_install, "collide", repo_path=R)
+    check("a contested path goes to the higher priority", taken is not None and taken["ok"], str(taken)[:200])
     check(
-        "the original link is untouched after the refusal",
-        (REPO / "shared" / "memory" / "work_note.md").resolve().parent.name == "memory"
-        and "work" in str((REPO / "shared" / "memory" / "work_note.md").resolve()),
+        "the link now points at the winner",
+        "overlays/collide/" in str(contested.resolve()),
+        str(contested.resolve()),
     )
     overlay.overlay_remove("collide", purge=True, repo_path=R)
+    check(
+        "removing the winner hands the path back",
+        contested.is_symlink() and "overlays/work/" in str(contested.resolve()),
+        str(contested.resolve()) if contested.is_symlink() else "link gone",
+    )
 
     first = (REPO / "claude" / "settings.json").read_text()
     render_mod.render(scope="artifacts", repo_path=R)

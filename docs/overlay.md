@@ -44,7 +44,9 @@ Every directory is optional. An overlay that only carries two memory files is a 
 }
 ```
 
-Higher `priority` wins when two overlays set the same JSON key. Ties break on alias, alphabetically.
+Higher `priority` wins when two overlays want the same thing — a JSON key or a file path. Ties break on alias, alphabetically. The order overlays happen to be installed in does not matter: a later install of a lower-priority overlay defers, and a later install of a higher-priority one takes the path over, reporting both as `DEFER` and `TAKE`. Remove the winner and the path falls back to the overlay that had deferred.
+
+A file the base repo itself provides is the one exception: an overlay may not shadow it, and `install` refuses rather than hiding a tracked file behind a symlink.
 
 ## How an overlay is applied
 
@@ -205,7 +207,13 @@ Tokens and passwords do not belong in an overlay either. Reference them from the
 
 Applying an overlay never deletes a setting that no source claims — `test/qa_interference.py` walks eight before-and-after scenarios and none of them loses data. Three behaviours do surprise people, though, and they are deliberate:
 
-A list is replaced, not appended to. If the base defines `hooks.Stop` and an overlay defines `hooks.Stop`, the overlay's list is what survives; sibling events like `hooks.PreCompact` are untouched. An overlay that wants to add one more Stop hook has to restate the base's. Only objects merge key by key.
+A list is replaced, not appended to — unless the key says otherwise. If the base defines `hooks.Stop` and an overlay defines `hooks.Stop`, the overlay's list is what survives; sibling events like `hooks.PreCompact` are untouched. To add to a list rather than own it, write the key with a trailing `+`:
+
+```json
+{ "hooks": { "Stop+": [ { "type": "command", "command": "..." } ] } }
+```
+
+That appends to whatever `hooks.Stop` holds so far and leaves the key named `Stop`. Several sources may append to the same list; they land in source order, which is priority order. Objects always merge key by key, with or without the marker.
 
 A key some source claims is restored from that source on the next render. Change `model` by hand in the rendered `settings.json` and the next render puts the base's value back — that is how a tracked setting stays tracked. Change it in `settings.base.json` or in an overlay instead. Keys no source claims, which is most of what Claude Code writes at runtime, are carried across untouched.
 
