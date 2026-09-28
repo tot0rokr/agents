@@ -1,85 +1,97 @@
-"""Tests for the list_* tools."""
+"""list_content / list_mcp_servers — provenance and credential withholding."""
 
 from __future__ import annotations
 
-import unittest
-
-from tests._helpers import (
-    TmpRepoTestCase,
-    write_command,
-    write_mcp_servers,
-    write_skill,
-    write_subagent,
-)
-from integrated_harness_kit_mcp.tools.listing import (
-    list_commands,
-    list_mcp_servers,
-    list_skills,
-    list_subagents,
-)
+from tests._helpers import HarnessTestCase, make_overlay, register_and_install, write_command, write_skill
 
 
-class ListSkillsTestCase(TmpRepoTestCase):
-    def test_empty_when_no_skills(self):
-        self.assertEqual(list_skills(repo_path=str(self.repo)), [])
+class ListContentTests(HarnessTestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        from integrated_harness_kit_mcp.tools import listing
 
-    def test_lists_one_skill(self):
-        write_skill(self.repo, "thinker", description="thinks hard")
-        result = list_skills(repo_path=str(self.repo))
-        self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]["name"], "thinker")
-        self.assertEqual(result[0]["description"], "thinks hard")
-
-    def test_skips_dirs_without_skill_md(self):
-        # A bare directory under skills/ with no SKILL.md should not show up.
-        (self.repo / "universal" / "skills" / "incomplete").mkdir()
-        self.assertEqual(list_skills(repo_path=str(self.repo)), [])
-
-
-class ListMcpTestCase(TmpRepoTestCase):
-    def test_empty_when_servers_json_missing(self):
-        self.assertEqual(list_mcp_servers(repo_path=str(self.repo)), [])
-
-    def test_lists_remote_and_stdio(self):
-        write_mcp_servers(
+        self.listing = listing
+        write_skill(self.repo, "base-skill", description="from base")
+        write_command(self.repo, "base-cmd", description="base command")
+        make_overlay(
             self.repo,
-            {
-                "linear": {
-                    "description": "Linear",
-                    "url": "https://mcp.linear.app/mcp",
-                    "transport": "http",
-                },
-                "fs": {
-                    "command": "npx",
-                    "args": ["-y", "fs-server"],
-                },
+            "work",
+            priority=60,
+            memories={"internal": "---\nname: internal\ndescription: internal host\n---\n\nx\n"},
+        )
+        register_and_install(self.repo, "work", priority=60)
+
+    def call(self, kind: str) -> dict:
+        return self.listing.list_content(kind, repo_path=str(self.repo))
+
+    def test_unknown_kind_is_rejected(self):
+        result = self.call("nonsense")
+        self.assertFalse(result["ok"])
+        self.assertIn("unknown kind", result["error"])
+
+    def test_base_entries_are_tagged_base(self):
+        entries = self.call("skills")["entries"]
+        self.assertEqual([e["name"] for e in entries], ["base-skill"])
+        self.assertEqual(entries[0]["source"], {"kind": "base"})
+        self.assertEqual(entries[0]["description"], "from base")
+
+    def test_overlay_entries_carry_their_alias(self):
+        entries = {e["name"]: e for e in self.call("memory")["entries"]}
+        self.assertIn("internal", entries)
+        self.assertEqual(entries["internal"]["source"], {"kind": "overlay", "alias": "work"})
+
+    def test_memory_index_is_not_listed_as_content(self):
+        (self.repo / "shared" / "memory" / "MEMORY.md").write_text("- [x](x.md)\n")
+        names = [e["name"] for e in self.call("memory")["entries"]]
+        self.assertNotIn("MEMORY", names)
+
+    def test_empty_directory_is_not_an_error(self):
+        result = self.call("subagents")
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["entries"], [])
+
+
+class ListMcpServersTests(HarnessTestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        from integrated_harness_kit_mcp.tools import listing
+
+        self.listing = listing
+        make_overlay(
+            self.repo,
+            "work",
+            priority=60,
+            servers={
+                "internal-kb": {
+                    "description": "internal",
+                    "command": "/opt/kb-serve",
+                    "args": [],
+                    "env": {"PASSWORD": "hunter2", "HOST": "kb.internal"},
+                }
             },
         )
-        result = list_mcp_servers(repo_path=str(self.repo))
-        by_name = {s["name"]: s for s in result}
-        self.assertEqual(by_name["linear"]["url"], "https://mcp.linear.app/mcp")
-        self.assertEqual(by_name["linear"]["transport"], "http")
-        self.assertEqual(by_name["fs"]["command"], "npx")
-        self.assertEqual(by_name["fs"]["args"], ["-y", "fs-server"])
+        register_and_install(self.repo, "work", priority=60)
 
+    def call(self, scope: str = "effective") -> dict:
+        return self.listing.list_mcp_servers(scope=scope, repo_path=str(self.repo))
 
-class ListCommandsTestCase(TmpRepoTestCase):
-    def test_lists_commands(self):
-        write_command(self.repo, "commit", description="make a commit")
-        result = list_commands(repo_path=str(self.repo))
-        self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]["name"], "commit")
-        self.assertEqual(result[0]["description"], "make a commit")
+    def test_effective_includes_overlay_servers(self):
+        names = [entry["name"] for entry in self.call("effective")["effective"]]
+        self.assertEqual(names, ["internal-kb", "linear"])
 
+    def test_base_scope_excludes_overlay_servers(self):
+        names = [entry["name"] for entry in self.call("base")["base"]]
+        self.assertEqual(names, ["linear"])
 
-class ListSubagentsTestCase(TmpRepoTestCase):
-    def test_lists_subagents(self):
-        write_subagent(self.repo, "code-reviewer", description="reviews code")
-        result = list_subagents(repo_path=str(self.repo))
-        self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]["name"], "code-reviewer")
-        self.assertEqual(result[0]["description"], "reviews code")
+    def test_overlay_only_is_reported(self):
+        self.assertEqual(self.call("both")["overlay_only"], ["internal-kb"])
 
+    def test_credentials_are_never_returned(self):
+        entry = next(e for e in self.call("effective")["effective"] if e["name"] == "internal-kb")
+        self.assertNotIn("env", entry)
+        self.assertNotIn("headers", entry)
+        self.assertEqual(entry["withheld"], ["env"])
+        self.assertNotIn("hunter2", str(self.call("both")))
 
-if __name__ == "__main__":
-    unittest.main()
+    def test_unknown_scope_is_rejected(self):
+        self.assertFalse(self.call("sideways")["ok"])

@@ -1,335 +1,202 @@
-"""Add/remove content in the agents harness — skills, MCP servers, commands, sub-agents.
+"""scaffold / remove_content — create and delete harness content.
 
-Each `add_*` writes the canonical file (and re-runs the matching render
-script when the content needs propagation). Each `remove_*` is the inverse.
-Both refuse silently-overwriting moves — `add_*` rejects an existing
-name, `remove_*` rejects a missing one — so the caller always knows
-exactly what changed.
+One pair of tools instead of eight `add_*`/`remove_*`, because the four kinds
+differed only in which directory they wrote to. What they gain over the caller
+writing the file itself is the part that is easy to get wrong: choosing between
+the base repo and an overlay, refusing a name another overlay already supplies,
+and re-linking or re-rendering afterwards.
 """
 
 from __future__ import annotations
 
-import json
 import re
-import shutil
 import subprocess
 from pathlib import Path
 
-from .. import repo as repo_lib
+from .. import layout
+from ._common import need_repo
 
 _NAME_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$")
 
 
-def _validate_name(name: str) -> str | None:
-    """Return an error message if `name` is not a safe identifier, else None."""
-    if not name:
-        return "name must not be empty"
+def scaffold(
+    kind: str,
+    name: str,
+    description: str = "",
+    body: str = "",
+    target: str = "base",
+    repo_path: str | None = None,
+) -> dict:
+    """Create a skill, command, subagent, memory or instruction file.
+
+    Args:
+        kind: skills | commands | subagents | memory | instructions
+        name: file or directory name, without extension.
+        target: "base" for this repo, or "overlay:<alias>" for a private
+                overlay. Environment-specific content belongs in an overlay —
+                the base repo is public.
+
+    An overlay target also adds the memory index line (for `kind="memory"`)
+    and re-applies the overlay so the file is linked into place.
+    """
+    repo_root, fail = need_repo(repo_path)
+    if fail:
+        return fail
+    problem = _validate(kind, name)
+    if problem:
+        return problem
+
+    alias, problem = _target_alias(repo_root, target)
+    if problem:
+        return problem
+
+    effective_rel = _effective_rel(kind, name)
+    existing = repo_root / effective_rel
+    if existing.exists() or existing.is_symlink():
+        return {
+            "ok": False,
+            "error": f"{effective_rel} already exists",
+            "source": layout.provenance(repo_root, effective_rel),
+        }
+
+    if alias:
+        path = _overlay_path(repo_root, alias, kind, name)
+    else:
+        _, pattern = layout.CONTENT_KINDS[kind]
+        # A skill is a directory with SKILL.md inside; everything else is a file.
+        path = repo_root / effective_rel / "SKILL.md" if pattern is None else repo_root / effective_rel
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(_template(kind, name, description, body))
+
+    result = {
+        "ok": True,
+        "kind": kind,
+        "name": name,
+        "path": str(path.relative_to(repo_root)),
+        "target": f"overlay:{alias}" if alias else "base",
+    }
+
+    if alias and kind == "memory":
+        result["index"] = _add_index_line(repo_root, alias, name, description)
+    if alias:
+        result["apply"] = _apply_overlay(repo_root, alias)
+    return result
+
+
+def remove_content(kind: str, name: str, repo_path: str | None = None) -> dict:
+    """Delete content. Refuses anything an overlay owns — remove it there."""
+    repo_root, fail = need_repo(repo_path)
+    if fail:
+        return fail
+    problem = _validate(kind, name)
+    if problem:
+        return problem
+
+    rel = _effective_rel(kind, name)
+    path = repo_root / rel
+    if not path.exists() and not path.is_symlink():
+        return {"ok": False, "error": f"{rel} not found"}
+
+    allowed, reason = layout.writable(repo_root, rel)
+    if not allowed:
+        return {"ok": False, "error": reason, "source": layout.provenance(repo_root, rel)}
+
+    if path.is_dir() and not path.is_symlink():
+        for child in sorted(path.rglob("*"), reverse=True):
+            child.rmdir() if child.is_dir() else child.unlink()
+        path.rmdir()
+    else:
+        path.unlink()
+    return {"ok": True, "kind": kind, "removed": rel}
+
+
+def _validate(kind: str, name: str) -> dict | None:
+    if kind not in layout.CONTENT_KINDS:
+        return {
+            "ok": False,
+            "error": f"unknown kind {kind!r}; expected one of {sorted(layout.CONTENT_KINDS)}",
+        }
     if not _NAME_RE.match(name):
-        return (
-            "name must be 1-64 chars, start with alphanumeric, and contain only "
-            "letters, digits, dot, hyphen, underscore"
-        )
+        return {"ok": False, "error": f"invalid name {name!r}"}
     return None
 
 
-def _need_repo(repo_path: str | None) -> tuple[Path | None, dict | None]:
-    repo_root = repo_lib.find_repo(Path(repo_path) if repo_path else None)
-    if repo_root is None:
-        return None, {"ok": False, "error": "agents repo not found"}
-    return repo_root, None
-
-
-# ---------------------------------------------------------------------------
-# Skills
-# ---------------------------------------------------------------------------
-
-
-def add_skill(
-    name: str,
-    description: str,
-    body: str,
-    repo_path: str | None = None,
-) -> dict:
-    """Create `universal/skills/<name>/SKILL.md` with the given frontmatter + body.
-
-    All four CLI agents auto-discover the new skill at next launch. No render
-    step needed.
-
-    Refuses to overwrite an existing skill of the same name.
-    """
-    err = _validate_name(name)
-    if err:
-        return {"ok": False, "error": err}
-    if not description.strip():
-        return {"ok": False, "error": "description must not be empty"}
-
-    repo_root, fail = _need_repo(repo_path)
-    if fail:
-        return fail
-
-    skill_dir = repo_root / "universal" / "skills" / name
-    skill_md = skill_dir / "SKILL.md"
-    if skill_md.exists():
-        return {"ok": False, "error": f"skill already exists: {skill_md}"}
-
-    skill_dir.mkdir(parents=True, exist_ok=False)
-    skill_md.write_text(
-        f"---\nname: {name}\ndescription: {description.strip()}\n---\n\n{body.rstrip()}\n"
-    )
-    return {"ok": True, "path": str(skill_md)}
-
-
-def remove_skill(name: str, repo_path: str | None = None) -> dict:
-    """Delete `universal/skills/<name>/` entirely. Refuses if not present."""
-    err = _validate_name(name)
-    if err:
-        return {"ok": False, "error": err}
-
-    repo_root, fail = _need_repo(repo_path)
-    if fail:
-        return fail
-
-    skill_dir = repo_root / "universal" / "skills" / name
-    if not skill_dir.is_dir():
-        return {"ok": False, "error": f"skill not found: {skill_dir}"}
-
-    shutil.rmtree(skill_dir)
-    return {"ok": True, "removed": str(skill_dir)}
-
-
-# ---------------------------------------------------------------------------
-# MCP servers
-# ---------------------------------------------------------------------------
-
-
-def add_mcp_server(
-    name: str,
-    description: str = "",
-    url: str | None = None,
-    transport: str | None = None,
-    command: str | None = None,
-    args: list[str] | None = None,
-    env: dict[str, str] | None = None,
-    headers: dict[str, str] | None = None,
-    repo_path: str | None = None,
-) -> dict:
-    """Add an MCP server to `shared/mcp/servers.json` and re-render per-tool configs.
-
-    Provide either `url` (remote HTTP/SSE) or `command` (local stdio).
-    `transport` only applies to remote servers — defaults to `http`; pass
-    `sse` for Server-Sent Events.
-    """
-    err = _validate_name(name)
-    if err:
-        return {"ok": False, "error": err}
-
-    if bool(url) == bool(command):
-        return {
+def _target_alias(repo_root: Path, target: str) -> tuple[str | None, dict | None]:
+    if target == "base":
+        return None, None
+    if not target.startswith("overlay:"):
+        return None, {"ok": False, "error": f"unknown target {target!r}"}
+    alias = target.split(":", 1)[1]
+    known = {entry.get("alias") for entry in layout.registered_overlays(repo_root)}
+    if alias not in known:
+        return None, {
             "ok": False,
-            "error": "exactly one of `url` (remote) or `command` (stdio) is required",
+            "error": f"no overlay registered as {alias!r}",
+            "registered": sorted(a for a in known if a),
         }
-
-    repo_root, fail = _need_repo(repo_path)
-    if fail:
-        return fail
-
-    servers_json = repo_root / "shared" / "mcp" / "servers.json"
-    if servers_json.exists():
-        data = json.loads(servers_json.read_text())
-    else:
-        data = {"servers": {}}
-    data.setdefault("servers", {})
-
-    if name in data["servers"]:
-        return {"ok": False, "error": f"MCP server already exists: {name}"}
-
-    entry: dict = {}
-    if description.strip():
-        entry["description"] = description.strip()
-    if url:
-        entry["url"] = url
-        entry["transport"] = transport or "http"
-        if headers:
-            entry["headers"] = headers
-    else:
-        entry["command"] = command
-        if args:
-            entry["args"] = list(args)
-        if env:
-            entry["env"] = dict(env)
-
-    data["servers"][name] = entry
-    servers_json.write_text(json.dumps(data, indent=2) + "\n")
-
-    render_result = _run_render(repo_root, "render-mcp.sh")
-    return {"ok": render_result["ok"], "name": name, "render": render_result}
+    return alias, None
 
 
-def remove_mcp_server(name: str, repo_path: str | None = None) -> dict:
-    """Remove an MCP server from `shared/mcp/servers.json` and re-render."""
-    err = _validate_name(name)
-    if err:
-        return {"ok": False, "error": err}
-
-    repo_root, fail = _need_repo(repo_path)
-    if fail:
-        return fail
-
-    servers_json = repo_root / "shared" / "mcp" / "servers.json"
-    if not servers_json.exists():
-        return {"ok": False, "error": "shared/mcp/servers.json does not exist"}
-
-    data = json.loads(servers_json.read_text())
-    servers = data.get("servers") or {}
-    if name not in servers:
-        return {"ok": False, "error": f"MCP server not found: {name}"}
-
-    del servers[name]
-    data["servers"] = servers
-    servers_json.write_text(json.dumps(data, indent=2) + "\n")
-
-    render_result = _run_render(repo_root, "render-mcp.sh")
-    return {"ok": render_result["ok"], "removed": name, "render": render_result}
+def _effective_rel(kind: str, name: str) -> str:
+    directory, pattern = layout.CONTENT_KINDS[kind]
+    return f"{directory}/{name}" if pattern is None else f"{directory}/{name}.md"
 
 
-# ---------------------------------------------------------------------------
-# Slash commands
-# ---------------------------------------------------------------------------
+def _overlay_path(repo_root: Path, alias: str, kind: str, name: str) -> Path:
+    sub = layout.OVERLAY_KINDS[kind]
+    root = layout.overlay_root(repo_root, alias) / sub
+    _, pattern = layout.CONTENT_KINDS[kind]
+    return root / name / "SKILL.md" if pattern is None else root / f"{name}.md"
 
 
-def add_command(
-    name: str,
-    description: str,
-    body: str,
-    repo_path: str | None = None,
-) -> dict:
-    """Create `shared/commands/<name>.md` and re-render Gemini TOML output."""
-    err = _validate_name(name)
-    if err:
-        return {"ok": False, "error": err}
-    if not description.strip():
-        return {"ok": False, "error": "description must not be empty"}
-
-    repo_root, fail = _need_repo(repo_path)
-    if fail:
-        return fail
-
-    md = repo_root / "shared" / "commands" / f"{name}.md"
-    if md.exists():
-        return {"ok": False, "error": f"command already exists: {md}"}
-
-    md.parent.mkdir(parents=True, exist_ok=True)
-    md.write_text(f"---\ndescription: {description.strip()}\n---\n\n{body.rstrip()}\n")
-
-    render_result = _run_render(repo_root, "render-gemini-commands.sh")
-    return {"ok": render_result["ok"], "path": str(md), "render": render_result}
+def _template(kind: str, name: str, description: str, body: str) -> str:
+    body = body.rstrip() or "TODO"
+    if kind == "skills":
+        return f"---\nname: {name}\ndescription: {description.strip()}\n---\n\n{body}\n"
+    if kind == "commands":
+        return f"---\ndescription: {description.strip()}\n---\n\n{body}\n"
+    if kind == "subagents":
+        return f"---\nname: {name}\ndescription: {description.strip()}\n---\n\n{body}\n"
+    if kind == "memory":
+        return (
+            f"---\nname: {name}\ndescription: {description.strip()}\n"
+            f"metadata:\n  node_type: memory\n  type: project\n---\n\n{body}\n"
+        )
+    return f"# {name}\n\n{body}\n"
 
 
-def remove_command(name: str, repo_path: str | None = None) -> dict:
-    """Delete `shared/commands/<name>.md` and re-render Gemini TOML output."""
-    err = _validate_name(name)
-    if err:
-        return {"ok": False, "error": err}
-
-    repo_root, fail = _need_repo(repo_path)
-    if fail:
-        return fail
-
-    md = repo_root / "shared" / "commands" / f"{name}.md"
-    if not md.exists():
-        return {"ok": False, "error": f"command not found: {md}"}
-
-    md.unlink()
-    render_result = _run_render(repo_root, "render-gemini-commands.sh")
-    return {"ok": render_result["ok"], "removed": str(md), "render": render_result}
-
-
-# ---------------------------------------------------------------------------
-# Sub-agents
-# ---------------------------------------------------------------------------
-
-
-def add_subagent(
-    name: str,
-    description: str,
-    body: str,
-    repo_path: str | None = None,
-) -> dict:
-    """Create `shared/subagents/<name>.md`. Claude + OpenCode auto-discover."""
-    err = _validate_name(name)
-    if err:
-        return {"ok": False, "error": err}
-    if not description.strip():
-        return {"ok": False, "error": "description must not be empty"}
-
-    repo_root, fail = _need_repo(repo_path)
-    if fail:
-        return fail
-
-    md = repo_root / "shared" / "subagents" / f"{name}.md"
-    if md.exists():
-        return {"ok": False, "error": f"sub-agent already exists: {md}"}
-
-    md.parent.mkdir(parents=True, exist_ok=True)
-    md.write_text(
-        f"---\nname: {name}\ndescription: {description.strip()}\n---\n\n{body.rstrip()}\n"
-    )
-    return {"ok": True, "path": str(md)}
-
-
-def remove_subagent(name: str, repo_path: str | None = None) -> dict:
-    """Delete `shared/subagents/<name>.md`."""
-    err = _validate_name(name)
-    if err:
-        return {"ok": False, "error": err}
-
-    repo_root, fail = _need_repo(repo_path)
-    if fail:
-        return fail
-
-    md = repo_root / "shared" / "subagents" / f"{name}.md"
-    if not md.exists():
-        return {"ok": False, "error": f"sub-agent not found: {md}"}
-
-    md.unlink()
-    return {"ok": True, "removed": str(md)}
-
-
-# ---------------------------------------------------------------------------
-# helpers
-# ---------------------------------------------------------------------------
-
-
-def _run_render(repo_root: Path, script_name: str, timeout: float = 60.0) -> dict:
-    """Run a render script and capture its result. Best-effort if missing."""
-    script = repo_root / "scripts" / script_name
-    if not script.is_file():
-        return {
-            "ok": False,
-            "script": script_name,
-            "exit_code": -1,
-            "stderr": f"missing script: {script}",
-        }
+def _add_index_line(repo_root: Path, alias: str, name: str, description: str) -> dict:
+    fragment = layout.overlay_root(repo_root, alias) / layout.MEMORY_INDEX_FRAGMENT
+    line = f"- [{name}]({name}.md) — {description.strip()}"
     try:
-        result = subprocess.run(
-            ["bash", str(script)],
+        existing = fragment.read_text() if fragment.is_file() else ""
+        if line in existing:
+            return {"ok": True, "added": False, "path": str(fragment)}
+        fragment.parent.mkdir(parents=True, exist_ok=True)
+        prefix = "" if not existing or existing.endswith("\n") else "\n"
+        fragment.write_text(existing + prefix + line + "\n")
+    except OSError as exc:
+        return {"ok": False, "error": str(exc)}
+    return {"ok": True, "added": True, "path": str(fragment.relative_to(repo_root))}
+
+
+def _apply_overlay(repo_root: Path, alias: str) -> dict:
+    script = repo_root / "scripts" / "overlay.py"
+    if not script.is_file():
+        return {"ok": False, "error": "this repo has no scripts/overlay.py"}
+    try:
+        proc = subprocess.run(
+            ["python3", str(script), "install", alias],
+            cwd=str(repo_root),
             capture_output=True,
             text=True,
-            timeout=timeout,
-            cwd=str(repo_root),
+            timeout=60.0,
         )
-    except subprocess.TimeoutExpired:
-        return {
-            "ok": False,
-            "script": script_name,
-            "exit_code": -2,
-            "stderr": f"{script_name} exceeded {timeout}s",
-        }
-
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {"ok": False, "error": str(exc)}
     return {
-        "ok": result.returncode == 0,
-        "script": script_name,
-        "exit_code": result.returncode,
-        "stdout": result.stdout[-2048:],
-        "stderr": result.stderr[-2048:],
+        "ok": proc.returncode == 0,
+        "stdout": proc.stdout[-2048:],
+        "stderr": proc.stderr[-2048:],
     }

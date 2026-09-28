@@ -1,67 +1,131 @@
-"""harness_status — inspect the current state of the agents harness."""
+"""status / capabilities — one place to ask "is this harness healthy?"."""
 
 from __future__ import annotations
 
 import os
 from pathlib import Path
 
-from .. import repo as repo_lib
+from .. import layout, repo as repo_lib, repo_scripts
+from ._common import need_repo, run
 
-# Mirror scripts/install.py:LINK_PATHS so the MCP doesn't drift from the
-# installer's notion of what should be linked. (Single source of truth would
-# be nicer; we'll unify in v0.3 when install logic is fully importable.)
-_LINK_PATHS = [
+# home path -> repo directory it should point at
+LINKS: tuple[tuple[str, str], ...] = (
     (".claude", "claude"),
     (".codex", "codex"),
     (".config/opencode", "opencode"),
     (".gemini", "gemini"),
     (".agents", "universal"),
-]
+)
 
 
-def harness_status(
-    home: str | None = None,
-    repo_path: str | None = None,
-) -> dict:
-    """Inspect the agents harness on this machine.
+def capabilities(repo_path: str | None = None) -> dict:
+    """What the repo on this machine supports — overlays, renderers, scripts."""
+    repo_root = repo_lib.find_repo(Path(repo_path) if repo_path else None)
+    caps = repo_scripts.capabilities(repo_root)
+    caps["package_version"] = _version()
+    return caps
+
+
+def status(level: str = "quick", repo_path: str | None = None, home: str | None = None) -> dict:
+    """Repo presence, home symlinks, overlays — and with level="full", doctor.
 
     Args:
-        home: Override `$HOME` for testing. Defaults to the real home dir.
-        repo_path: Override repo discovery. Defaults to env/`~/agents`.
-
-    Returns a dict with keys:
-        installed (bool):  True iff all 5 home-dir symlinks resolve correctly.
-        repo (str|None):   Absolute path to the agents repo, or None if absent.
-        home (str):        The home dir we inspected.
-        links (list):      One entry per expected link with state + actual target.
+        level: "quick" (no subprocess) or "full" (also runs scripts/doctor.sh).
+        home: override `$HOME` when checking the symlinks. For tests.
     """
-    home_path = Path(home) if home else Path.home()
-    repo_root = repo_lib.find_repo(Path(repo_path) if repo_path else None)
+    if level not in ("quick", "full"):
+        return {"ok": False, "error": f"unknown level {level!r}; expected quick or full"}
 
-    links: list[dict] = []
-    for home_rel, repo_rel in _LINK_PATHS:
-        target = home_path / home_rel
-        entry: dict = {"path": str(target), "expected_repo_sub": repo_rel}
+    repo_root, fail = need_repo(repo_path)
+    if fail:
+        return fail
+
+    home_root = Path(home).expanduser() if home else Path(os.path.expanduser("~"))
+    links = []
+    for home_rel, repo_rel in LINKS:
+        target = home_root / home_rel
+        expected = repo_root / repo_rel
         if target.is_symlink():
             actual = Path(os.readlink(target))
-            expected = (repo_root / repo_rel).resolve() if repo_root else None
-            if expected is not None and actual == expected:
-                entry["state"] = "linked"
-                entry["target"] = str(actual)
-            else:
-                entry["state"] = "linked-elsewhere"
-                entry["target"] = str(actual)
+            state = "linked" if actual == expected else "linked-elsewhere"
         elif target.exists():
-            entry["state"] = "real-dir"
+            state = "real-directory"
         else:
-            entry["state"] = "missing"
-        links.append(entry)
+            state = "missing"
+        links.append(
+            {
+                "path": str(target),
+                "expected": str(expected),
+                "state": state,
+                "ok": state == "linked",
+            }
+        )
 
-    installed = repo_root is not None and all(l["state"] == "linked" for l in links)
-
-    return {
-        "installed": installed,
-        "repo": str(repo_root) if repo_root else None,
-        "home": str(home_path),
+    result = {
+        "ok": all(entry["ok"] for entry in links),
+        "repo": str(repo_root),
         "links": links,
+        "artifacts": _artifacts(repo_root),
+        "overlays": _overlays(repo_root),
     }
+
+    if level == "full":
+        doctor = repo_root / "scripts" / "doctor.sh"
+        if doctor.is_file():
+            result["doctor"] = run(["bash", str(doctor)], cwd=repo_root, timeout=120.0)
+            result["ok"] = result["ok"] and result["doctor"]["ok"]
+        else:
+            result["doctor"] = {"ok": False, "stderr": f"missing script: {doctor}"}
+            result["ok"] = False
+
+    return result
+
+
+def _artifacts(repo_root: Path) -> list[dict]:
+    out = []
+    for artifact, source in layout.ARTIFACTS.items():
+        out.append(
+            {
+                "path": artifact,
+                "source": source,
+                "rendered": (repo_root / artifact).is_file(),
+                "source_present": (repo_root / source).is_file(),
+            }
+        )
+    return out
+
+
+def _overlays(repo_root: Path) -> dict:
+    if not layout.supports_overlays(repo_root):
+        return {"supported": False, "installed": []}
+
+    applied = layout.applied_links(repo_root)
+    counts: dict[str, int] = {}
+    for alias in applied.values():
+        counts[alias] = counts.get(alias, 0) + 1
+
+    installed = []
+    for entry in layout.registered_overlays(repo_root):
+        alias = entry.get("alias", "")
+        root = layout.overlay_root(repo_root, alias)
+        installed.append(
+            {
+                "alias": alias,
+                "priority": entry.get("priority", 50),
+                "enabled": entry.get("enabled", True),
+                "url": entry.get("url", ""),
+                "ref": entry.get("ref", ""),
+                "cloned": (root / "overlay.json").is_file(),
+                "links": counts.get(alias, 0),
+            }
+        )
+    return {"supported": True, "installed": installed}
+
+
+def _version() -> str:
+    try:
+        from .. import __version__  # noqa: PLC0415
+
+        return __version__
+    except Exception:  # noqa: BLE001
+        return "unknown"

@@ -63,11 +63,8 @@ Outstanding work for the unified agents harness and its companion MCP package. I
       `add_subagent` / `remove_subagent`. Each `add_*` triggers the
       matching render where applicable; remove_* the inverse. 22 unittest
       cases; total package coverage: 55 cases.
-- [ ] **v0.5.0** — maintenance tools: `update` (git pull + render +
-      doctor), `audit_drift` (uncommitted change classification),
-      `commit` (staged commit following `git-commit-workflow` skill),
-      `edit_memory` / `edit_instruction` (write `shared/memory/<name>.md`
-      or `shared/instructions/<topic>.md`).
+- [x] **v1.0.0** — caught the package up with the overlay split, and pruned it while doing so. New `layout.py` classifies every path as base source, render artifact or overlay-owned, and `repo_scripts.py` loads the repo's own `overlay.py` / `render_settings.py` instead of duplicating them. Redundant tools were merged: `harness_status`+`doctor` into `status(level)`, three listers into `list_content(kind)`, eight `add_*`/`remove_*` into `scaffold`/`remove_content`, `clone`+`install` into `bootstrap`. New: `capabilities`, `settings_get`/`settings_set` with per-key provenance, `mcp_server_set`/`mcp_server_remove`, the `overlay_*` family including `overlay_route` and `overlay_commit`, and the v0.5 maintenance set (`update`, `audit_drift`, `commit`) finally registered. `render` gained scopes so the public per-tool configs are rendered from base only. 127 unittest cases against a fixture repo that carries the real scripts and real overlays.
+- [ ] **v1.1** — `edit_memory` / `edit_instruction`. They have to resolve the symlink first: writing `shared/memory/<name>.md` on this machine silently edits an overlay's repo, so the tool must say which repo it dirtied and refuse unless the caller named the overlay.
 
 ## Overlays
 
@@ -79,7 +76,7 @@ Outstanding work for the unified agents harness and its companion MCP package. I
 - [x] Setup steps — an overlay declares what its environment needs beyond files (credential files, daemons, logins) as `check` / `run` / `agent` / `manual` entries, and `overlay.py setup` works through them. Agent steps go to `claude -p` with a narrowed tool list and a guardrail prompt, or to a live session with `--interactive`. Nothing runs without `--yes`.
 - [ ] `overlay.py` unit tests — the full init/add/install/setup/status/update/remove path is only covered by manual scratch runs so far.
 - [ ] `render-mcp.sh` replaces a server's `env` / `headers` wholesale when it writes each tool's native config, so a value set only on that machine is lost on the next render. Make it merge those two keys instead.
-- [ ] `render-mcp.sh` now reads an overlay-merged `servers.json` but still writes into `codex/config.toml`, `gemini/settings.json` and `opencode/opencode.json`, which this public repo tracks. Running it would commit an overlay's internal servers and their credentials. Those three files have to become untracked render artifacts like `claude/settings.json` did, with `install.py` producing them on a fresh clone. Until then, do not run the render scripts on a machine with overlays installed.
+- [ ] `render-mcp.sh` still reads the overlay-merged `servers.json` and writes into `codex/config.toml`, `gemini/settings.json` and `opencode/opencode.json`, which this public repo tracks: running the script by hand on a machine with overlays would commit internal servers and their credentials. The MCP package works around it — `render(scope="public")` renders those files from `servers.base.json` and checks afterwards — but the script itself is still unsafe to run directly. Either move that base-only logic into the script, or make the three files untracked artifacts produced at install time.
 - [ ] Memory pointer lines have no overlay path — `shared/memory/MEMORY.md` is a single tracked file in the public base, so the index line for an overlay-provided memory has nowhere private to live. Needs the same base/fragment split as the JSON artifacts.
 
 ## Publishing & CI

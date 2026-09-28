@@ -1,271 +1,116 @@
-"""Tests for the content add/remove tools (v0.4)."""
+"""scaffold / remove_content — where new content lands and what is refused."""
 
 from __future__ import annotations
 
-import json
-import unittest
-from pathlib import Path
-
-from tests._helpers import (
-    TmpRepoTestCase,
-    write_command,
-    write_mcp_servers,
-    write_skill,
-    write_subagent,
-)
-from integrated_harness_kit_mcp.tools.content import (
-    add_command,
-    add_mcp_server,
-    add_skill,
-    add_subagent,
-    remove_command,
-    remove_mcp_server,
-    remove_skill,
-    remove_subagent,
-)
+from tests._helpers import HarnessTestCase, make_overlay, register_and_install, write_skill
 
 
-def _install_noop_render(repo: Path, name: str) -> None:
-    """Install a render stub that succeeds without doing anything."""
-    s = repo / "scripts" / name
-    s.write_text('#!/usr/bin/env bash\nexit 0\n')
-    s.chmod(0o755)
-
-
-class AddSkillTestCase(TmpRepoTestCase):
-    def test_creates_skill(self):
-        result = add_skill(
-            name="my-skill",
-            description="Does the thing",
-            body="When to use: ...",
-            repo_path=str(self.repo),
-        )
-        self.assertTrue(result["ok"])
-        skill_md = self.repo / "universal" / "skills" / "my-skill" / "SKILL.md"
-        self.assertTrue(skill_md.is_file())
-        text = skill_md.read_text()
-        self.assertIn("name: my-skill", text)
-        self.assertIn("description: Does the thing", text)
-        self.assertIn("When to use", text)
-
-    def test_refuses_overwrite(self):
-        write_skill(self.repo, "existing")
-        result = add_skill(
-            name="existing",
-            description="x",
-            body="y",
-            repo_path=str(self.repo),
-        )
-        self.assertFalse(result["ok"])
-        self.assertIn("already exists", result["error"])
-
-    def test_rejects_bad_name(self):
-        result = add_skill(
-            name="../escape",
-            description="x",
-            body="y",
-            repo_path=str(self.repo),
-        )
-        self.assertFalse(result["ok"])
-        self.assertIn("name", result["error"])
-
-    def test_rejects_empty_description(self):
-        result = add_skill(
-            name="x",
-            description="   ",
-            body="y",
-            repo_path=str(self.repo),
-        )
-        self.assertFalse(result["ok"])
-
-
-class RemoveSkillTestCase(TmpRepoTestCase):
-    def test_removes_skill(self):
-        write_skill(self.repo, "tmp-skill")
-        result = remove_skill("tmp-skill", repo_path=str(self.repo))
-        self.assertTrue(result["ok"])
-        self.assertFalse((self.repo / "universal" / "skills" / "tmp-skill").exists())
-
-    def test_missing_skill(self):
-        result = remove_skill("nope", repo_path=str(self.repo))
-        self.assertFalse(result["ok"])
-        self.assertIn("not found", result["error"])
-
-
-class AddMcpServerTestCase(TmpRepoTestCase):
-    def setUp(self):
+class ScaffoldTests(HarnessTestCase):
+    def setUp(self) -> None:
         super().setUp()
-        _install_noop_render(self.repo, "render-mcp.sh")
+        from integrated_harness_kit_mcp.tools import content
 
-    def test_adds_remote_server(self):
-        result = add_mcp_server(
-            name="linear",
-            description="Linear",
-            url="https://mcp.linear.app/mcp",
-            transport="http",
+        self.content = content
+        make_overlay(self.repo, "work", priority=60)
+        register_and_install(self.repo, "work", priority=60)
+
+    def test_skill_lands_in_the_base_tree(self):
+        result = self.content.scaffold(
+            "skills", "new-skill", description="does a thing", repo_path=str(self.repo)
+        )
+        self.assertTrue(result["ok"], result)
+        skill = self.repo / "universal" / "skills" / "new-skill" / "SKILL.md"
+        self.assertTrue(skill.is_file())
+        self.assertIn("name: new-skill", skill.read_text())
+
+    def test_command_and_subagent_and_instruction(self):
+        for kind, rel in (
+            ("commands", "shared/commands/c1.md"),
+            ("subagents", "shared/subagents/s1.md"),
+            ("instructions", "shared/instructions/i1.md"),
+        ):
+            name = rel.rsplit("/", 1)[1][:-3]
+            result = self.content.scaffold(kind, name, description="d", repo_path=str(self.repo))
+            self.assertTrue(result["ok"], result)
+            self.assertTrue((self.repo / rel).is_file(), rel)
+
+    def test_overlay_target_writes_into_the_overlay_and_links_back(self):
+        result = self.content.scaffold(
+            "memory",
+            "internal-fact",
+            description="an internal fact",
+            target="overlay:work",
             repo_path=str(self.repo),
         )
-        self.assertTrue(result["ok"], msg=result)
-        servers = json.loads(
-            (self.repo / "shared" / "mcp" / "servers.json").read_text()
-        )["servers"]
-        self.assertIn("linear", servers)
-        self.assertEqual(servers["linear"]["url"], "https://mcp.linear.app/mcp")
-        self.assertEqual(servers["linear"]["transport"], "http")
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["path"], "overlays/work/memory/internal-fact.md")
+        self.assertTrue(result["apply"]["ok"], result["apply"])
+        link = self.repo / "shared" / "memory" / "internal-fact.md"
+        self.assertTrue(link.is_symlink())
 
-    def test_adds_stdio_server(self):
-        result = add_mcp_server(
-            name="fs",
-            command="npx",
-            args=["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
+    def test_overlay_memory_gets_an_index_line(self):
+        self.content.scaffold(
+            "memory",
+            "internal-fact",
+            description="an internal fact",
+            target="overlay:work",
             repo_path=str(self.repo),
         )
-        self.assertTrue(result["ok"], msg=result)
-        servers = json.loads(
-            (self.repo / "shared" / "mcp" / "servers.json").read_text()
-        )["servers"]
-        self.assertEqual(servers["fs"]["command"], "npx")
-        self.assertEqual(servers["fs"]["args"][0], "-y")
+        fragment = (self.repo / "overlays" / "work" / "memory" / "MEMORY.md").read_text()
+        self.assertIn("internal-fact.md", fragment)
+        self.assertIn("an internal fact", (self.repo / "shared" / "memory" / "MEMORY.md").read_text())
 
-    def test_rejects_both_url_and_command(self):
-        result = add_mcp_server(
-            name="x",
-            url="https://x",
-            command="y",
-            repo_path=str(self.repo),
+    def test_existing_name_is_refused_with_provenance(self):
+        write_skill(self.repo, "taken")
+        result = self.content.scaffold("skills", "taken", repo_path=str(self.repo))
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["source"], {"kind": "base"})
+
+    def test_a_name_an_overlay_already_supplies_is_refused(self):
+        self.content.scaffold(
+            "memory", "claimed", target="overlay:work", repo_path=str(self.repo)
+        )
+        result = self.content.scaffold("memory", "claimed", repo_path=str(self.repo))
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["source"], {"kind": "overlay", "alias": "work"})
+
+    def test_bad_kind_and_bad_name(self):
+        self.assertFalse(self.content.scaffold("nope", "x", repo_path=str(self.repo))["ok"])
+        self.assertFalse(self.content.scaffold("skills", "../x", repo_path=str(self.repo))["ok"])
+
+    def test_unknown_overlay_lists_the_registered_ones(self):
+        result = self.content.scaffold(
+            "memory", "x", target="overlay:ghost", repo_path=str(self.repo)
         )
         self.assertFalse(result["ok"])
-
-    def test_rejects_neither_url_nor_command(self):
-        result = add_mcp_server(name="x", repo_path=str(self.repo))
-        self.assertFalse(result["ok"])
-
-    def test_refuses_duplicate(self):
-        write_mcp_servers(self.repo, {"linear": {"url": "x"}})
-        result = add_mcp_server(
-            name="linear", url="y", repo_path=str(self.repo)
-        )
-        self.assertFalse(result["ok"])
-        self.assertIn("already exists", result["error"])
+        self.assertEqual(result["registered"], ["work"])
 
 
-class RemoveMcpServerTestCase(TmpRepoTestCase):
-    def setUp(self):
+class RemoveContentTests(HarnessTestCase):
+    def setUp(self) -> None:
         super().setUp()
-        _install_noop_render(self.repo, "render-mcp.sh")
+        from integrated_harness_kit_mcp.tools import content
 
-    def test_removes(self):
-        write_mcp_servers(self.repo, {"linear": {"url": "x"}})
-        result = remove_mcp_server("linear", repo_path=str(self.repo))
-        self.assertTrue(result["ok"], msg=result)
-        data = json.loads(
-            (self.repo / "shared" / "mcp" / "servers.json").read_text()
+        self.content = content
+        make_overlay(
+            self.repo,
+            "work",
+            priority=60,
+            memories={"owned": "---\nname: owned\n---\n\nx\n"},
         )
-        self.assertNotIn("linear", data["servers"])
+        register_and_install(self.repo, "work", priority=60)
 
-    def test_missing(self):
-        write_mcp_servers(self.repo, {"linear": {"url": "x"}})
-        result = remove_mcp_server("other", repo_path=str(self.repo))
+    def test_base_content_is_removed(self):
+        write_skill(self.repo, "temp")
+        result = self.content.remove_content("skills", "temp", repo_path=str(self.repo))
+        self.assertTrue(result["ok"], result)
+        self.assertFalse((self.repo / "universal" / "skills" / "temp").exists())
+
+    def test_overlay_owned_content_is_refused(self):
+        result = self.content.remove_content("memory", "owned", repo_path=str(self.repo))
         self.assertFalse(result["ok"])
-        self.assertIn("not found", result["error"])
+        self.assertIn("work", result["error"])
+        self.assertTrue((self.repo / "shared" / "memory" / "owned.md").is_symlink())
 
-
-class AddCommandTestCase(TmpRepoTestCase):
-    def setUp(self):
-        super().setUp()
-        _install_noop_render(self.repo, "render-gemini-commands.sh")
-
-    def test_creates_command(self):
-        result = add_command(
-            name="commit",
-            description="Make a commit",
-            body="Run `git diff --cached`. $ARGUMENTS",
-            repo_path=str(self.repo),
-        )
-        self.assertTrue(result["ok"], msg=result)
-        md = self.repo / "shared" / "commands" / "commit.md"
-        self.assertTrue(md.is_file())
-        text = md.read_text()
-        self.assertIn("description: Make a commit", text)
-        self.assertIn("$ARGUMENTS", text)
-
-    def test_refuses_duplicate(self):
-        write_command(self.repo, "commit")
-        result = add_command(
-            name="commit", description="x", body="y", repo_path=str(self.repo)
-        )
-        self.assertFalse(result["ok"])
-
-
-class RemoveCommandTestCase(TmpRepoTestCase):
-    def setUp(self):
-        super().setUp()
-        _install_noop_render(self.repo, "render-gemini-commands.sh")
-
-    def test_removes(self):
-        write_command(self.repo, "commit")
-        result = remove_command("commit", repo_path=str(self.repo))
-        self.assertTrue(result["ok"])
-        self.assertFalse((self.repo / "shared" / "commands" / "commit.md").exists())
-
-    def test_missing(self):
-        result = remove_command("nope", repo_path=str(self.repo))
-        self.assertFalse(result["ok"])
-
-
-class AddSubagentTestCase(TmpRepoTestCase):
-    def test_creates(self):
-        result = add_subagent(
-            name="reviewer",
-            description="Reviews code",
-            body="You are a reviewer.",
-            repo_path=str(self.repo),
-        )
-        self.assertTrue(result["ok"], msg=result)
-        md = self.repo / "shared" / "subagents" / "reviewer.md"
-        text = md.read_text()
-        self.assertIn("name: reviewer", text)
-        self.assertIn("description: Reviews code", text)
-
-    def test_refuses_duplicate(self):
-        write_subagent(self.repo, "reviewer")
-        result = add_subagent(
-            name="reviewer", description="x", body="y", repo_path=str(self.repo)
-        )
-        self.assertFalse(result["ok"])
-
-
-class RemoveSubagentTestCase(TmpRepoTestCase):
-    def test_removes(self):
-        write_subagent(self.repo, "reviewer")
-        result = remove_subagent("reviewer", repo_path=str(self.repo))
-        self.assertTrue(result["ok"])
-        self.assertFalse(
-            (self.repo / "shared" / "subagents" / "reviewer.md").exists()
-        )
-
-    def test_missing(self):
-        result = remove_subagent("nope", repo_path=str(self.repo))
-        self.assertFalse(result["ok"])
-
-
-class RepoNotFoundTestCase(TmpRepoTestCase):
-    def test_each_function_handles_missing_repo(self):
-        bogus = str(self.tmp_path / "missing")
-        for fn, args in [
-            (add_skill, dict(name="x", description="x", body="y")),
-            (remove_skill, dict(name="x")),
-            (add_mcp_server, dict(name="x", url="y")),
-            (remove_mcp_server, dict(name="x")),
-            (add_command, dict(name="x", description="x", body="y")),
-            (remove_command, dict(name="x")),
-            (add_subagent, dict(name="x", description="x", body="y")),
-            (remove_subagent, dict(name="x")),
-        ]:
-            r = fn(**args, repo_path=bogus)
-            self.assertFalse(r["ok"], msg=f"{fn.__name__} did not fail")
-            self.assertEqual(r["error"], "agents repo not found")
-
-
-if __name__ == "__main__":
-    unittest.main()
+    def test_missing_content(self):
+        self.assertFalse(self.content.remove_content("skills", "ghost", repo_path=str(self.repo))["ok"])

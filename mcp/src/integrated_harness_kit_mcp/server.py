@@ -9,55 +9,57 @@ from __future__ import annotations
 
 from mcp.server.fastmcp import FastMCP
 
-from .tools.clone import clone
-from .tools.content import (
-    add_command,
-    add_mcp_server,
-    add_skill,
-    add_subagent,
-    remove_command,
-    remove_mcp_server,
-    remove_skill,
-    remove_subagent,
-)
-from .tools.doctor import doctor
-from .tools.install_tool import install
-from .tools.listing import (
-    list_commands,
-    list_mcp_servers,
-    list_skills,
-    list_subagents,
+from .tools.bootstrap import bootstrap
+from .tools.content import remove_content, scaffold
+from .tools.listing import list_content, list_mcp_servers
+from .tools.maintenance import audit_drift, commit, update
+from .tools.mcp_servers import mcp_server_remove, mcp_server_set
+from .tools.overlay import (
+    overlay_add,
+    overlay_commit,
+    overlay_install,
+    overlay_list,
+    overlay_remove,
+    overlay_route,
+    overlay_setup,
 )
 from .tools.render import render
-from .tools.status import harness_status
+from .tools.settings import settings_get, settings_set
+from .tools.status import capabilities, status
 
 mcp = FastMCP("integrated-harness-kit")
 
-# Register every tool. FastMCP introspects the function signature and
-# docstring to produce the MCP tool schema.
+# Diagnostics.
+mcp.tool()(status)
+mcp.tool()(capabilities)
+mcp.tool()(audit_drift)
 
-# Read-only / diagnostics.
-mcp.tool()(harness_status)
-mcp.tool()(doctor)
-mcp.tool()(list_skills)
+# What the harness offers.
+mcp.tool()(list_content)
 mcp.tool()(list_mcp_servers)
-mcp.tool()(list_commands)
-mcp.tool()(list_subagents)
+mcp.tool()(overlay_list)
+mcp.tool()(overlay_route)
+mcp.tool()(settings_get)
 
-# Mutate / lifecycle.
-mcp.tool()(clone)
-mcp.tool()(install)
+# Change it.
+mcp.tool()(scaffold)
+mcp.tool()(remove_content)
+mcp.tool()(settings_set)
+mcp.tool()(mcp_server_set)
+mcp.tool()(mcp_server_remove)
+
+# Lifecycle.
+mcp.tool()(bootstrap)
+mcp.tool()(update)
 mcp.tool()(render)
+mcp.tool()(overlay_add)
+mcp.tool()(overlay_install)
+mcp.tool()(overlay_remove)
+mcp.tool()(overlay_setup)
 
-# Content add/remove (v0.4).
-mcp.tool()(add_skill)
-mcp.tool()(remove_skill)
-mcp.tool()(add_mcp_server)
-mcp.tool()(remove_mcp_server)
-mcp.tool()(add_command)
-mcp.tool()(remove_command)
-mcp.tool()(add_subagent)
-mcp.tool()(remove_subagent)
+# Committing.
+mcp.tool()(commit)
+mcp.tool()(overlay_commit)
 
 
 def main() -> None:
