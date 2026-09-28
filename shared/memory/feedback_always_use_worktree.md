@@ -5,6 +5,7 @@ metadata:
   node_type: memory
   type: feedback
   originSessionId: b0bcb094-de07-4ce3-b28a-b6a04c1166db
+  modified: 2026-07-24T05:39:58.548Z
 ---
 
 git 프로젝트 위에서 개발할 때는 항상 git worktree를 만들어서 그 안에서 작업한다. 작업이 완료돼도 main에 바로 병합하지 않는다 — 병합 전에 반드시 사용자에게 물어보고, 승인받으면 그때 병합한다. worktree 위치/이름 규칙: 프로젝트 상위 디렉토리에 `프로젝트명-branch명` 형식 (예: `myproj`의 `feat-x` 브랜치 → `../myproj-feat-x`).
