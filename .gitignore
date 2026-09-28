@@ -43,6 +43,7 @@ claude/tasks/
 claude/telemetry/
 claude/plugins/marketplaces/
 claude/plugins/synced/
+claude/plugins/.trash/
 claude/daemon-auth-cooldown
 claude/daemon-auth-status.json
 claude/policy-limits.json.stamp.json
@@ -134,6 +135,12 @@ mcp/.codeindex/
 # write. Neither is authored here.
 universal/skills/synced/
 gemini/projects.json
+
+# Skills that are a symlink into a separately installed tool. The tool has its
+# own upstream, so an overlay's setup step clones it and makes the link — the
+# link is machine setup, not content this repo carries.
+universal/skills/bell
+universal/skills/noti
 
 # claude-account-switcher install.sh backups (~/.claude symlinks into this repo)
 *.pre-claude-auto.*.bak
