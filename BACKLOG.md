@@ -79,6 +79,7 @@ Outstanding work for the unified agents harness and its companion MCP package. I
 - [x] Setup steps — an overlay declares what its environment needs beyond files (credential files, daemons, logins) as `check` / `run` / `agent` / `manual` entries, and `overlay.py setup` works through them. Agent steps go to `claude -p` with a narrowed tool list and a guardrail prompt, or to a live session with `--interactive`. Nothing runs without `--yes`.
 - [ ] `overlay.py` unit tests — the full init/add/install/setup/status/update/remove path is only covered by manual scratch runs so far.
 - [ ] `render-mcp.sh` replaces a server's `env` / `headers` wholesale when it writes each tool's native config, so a value set only on that machine is lost on the next render. Make it merge those two keys instead.
+- [ ] `render-mcp.sh` now reads an overlay-merged `servers.json` but still writes into `codex/config.toml`, `gemini/settings.json` and `opencode/opencode.json`, which this public repo tracks. Running it would commit an overlay's internal servers and their credentials. Those three files have to become untracked render artifacts like `claude/settings.json` did, with `install.py` producing them on a fresh clone. Until then, do not run the render scripts on a machine with overlays installed.
 - [ ] Memory pointer lines have no overlay path — `shared/memory/MEMORY.md` is a single tracked file in the public base, so the index line for an overlay-provided memory has nowhere private to live. Needs the same base/fragment split as the JSON artifacts.
 
 ## Publishing & CI
