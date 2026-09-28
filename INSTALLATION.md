@@ -4,7 +4,7 @@ This file is meant to be handed to an AI coding agent. Paste it into a fresh ses
 
 > 이대로 설치해줘
 
-The agent will clone the repo, run the installer, verify it, and wire up the `integrated-harness-kit-mcp` entry in your CLI's own config — you don't need to touch any `settings.json` by hand.
+The agent will clone the repo, run the installer, verify it, wire up the `integrated-harness-kit-mcp` entry in your CLI's own config, and ask whether you have private overlay repos to layer on top — you don't need to touch any `settings.json` by hand.
 
 If you're a human and want to do it manually instead, just run:
 
@@ -93,20 +93,22 @@ Use **only** the row for the CLI you detected in Step 0. Use your write/edit too
   "mcpServers": {
     "integrated-harness-kit": {
       "command": "uvx",
-      "args": ["integrated-harness-kit-mcp"]
+      "args": ["--from", "/home/<user>/agents/mcp", "integrated-harness-kit-mcp"]
     }
   }
 }
 ```
 
-If `~/agents/scripts/render-mcp.sh` ran during install, this is already patched for you — verify with `jq '.mcpServers' ~/.claude.json`. To add by hand: `jq '.mcpServers += {"integrated-harness-kit":{"command":"uvx","args":["integrated-harness-kit-mcp"]}}' ~/.claude.json > /tmp/.claude.json.new && mv /tmp/.claude.json.new ~/.claude.json && chmod 600 ~/.claude.json`.
+Replace `/home/<user>` with the real `$HOME` — these configs do not expand `~` or `$HOME`.
+
+To add by hand: `jq --arg repo "$HOME/agents/mcp" '.mcpServers += {"integrated-harness-kit":{"command":"uvx","args":["--from",$repo,"integrated-harness-kit-mcp"]}}' ~/.claude.json > /tmp/.claude.json.new && mv /tmp/.claude.json.new ~/.claude.json && chmod 600 ~/.claude.json`.
 
 **Codex CLI** (`~/.codex/config.toml`): append (don't replace existing tables):
 
 ```toml
 [mcp_servers.integrated-harness-kit]
 command = "uvx"
-args = ["integrated-harness-kit-mcp"]
+args = ["--from", "/home/<user>/agents/mcp", "integrated-harness-kit-mcp"]
 ```
 
 **OpenCode** (`~/.config/opencode/opencode.json`): set or extend the `mcp` key:
@@ -116,7 +118,7 @@ args = ["integrated-harness-kit-mcp"]
   "mcp": {
     "integrated-harness-kit": {
       "type": "local",
-      "command": ["uvx", "integrated-harness-kit-mcp"],
+      "command": ["uvx", "--from", "/home/<user>/agents/mcp", "integrated-harness-kit-mcp"],
       "enabled": true
     }
   }
@@ -130,22 +132,56 @@ args = ["integrated-harness-kit-mcp"]
   "mcpServers": {
     "integrated-harness-kit": {
       "command": "uvx",
-      "args": ["integrated-harness-kit-mcp"]
+      "args": ["--from", "/home/<user>/agents/mcp", "integrated-harness-kit-mcp"]
     }
   }
 }
 ```
 
-> **Note** — `integrated-harness-kit-mcp` is the PyPI distribution of the MCP server. If `uvx` reports "package not found", the latest tag may not have been pushed to PyPI yet; clone the repo and use `uvx --from /path/to/agents/mcp integrated-harness-kit-mcp` as a local fallback.
+> **Note** — the server is installed from the clone you just made, not from PyPI. The published distribution is stale: it predates the overlay-aware tools and declares an unbounded `mcp>=1.0`, so on a machine that resolves `mcp` 2.x today it fails to start. Once a current version is published, `args` becomes just `["integrated-harness-kit-mcp"]`.
 
-### Step 6 — Tell the user what happened
+Verify the server starts before moving on:
+
+```bash
+echo '' | uvx --from ~/agents/mcp integrated-harness-kit-mcp
+```
+
+It should exit quietly. A traceback means the entry is not usable yet — report it and stop.
+
+### Step 6 — Ask about overlays
+
+What you have installed so far is the public base: the shared instructions, skills, commands and sub-agents. The parts that describe *this* person and *this* employer — their identity, machine-specific memories, internal MCP servers, credentials — live in private overlay repos layered on top. A machine without them is half set up, and nothing in the base repo can tell you which ones exist.
+
+So ask the user, once:
+
+> Do you have overlay repos for this machine? A personal one, a work one? Paste their git URLs, or say none.
+
+For each URL they give:
+
+```bash
+python3 ~/agents/scripts/overlay.py add <alias> <git-url> --priority <N>
+python3 ~/agents/scripts/overlay.py install <alias>
+```
+
+Use `personal` at priority 50 and `work` at 60 unless the user says otherwise; the higher priority wins where two overlays set the same key. Then check what each one still needs from the machine:
+
+```bash
+python3 ~/agents/scripts/overlay.py setup <alias> --dry-run
+```
+
+That lists steps an overlay declares beyond files — a credential file to install, a login to perform, a helper to put on PATH. Show the user the list and let them decide; run it with `--yes` only if they say so. Some steps need a secret only they have.
+
+If they say none, say so in your report and move on. `scripts/overlay.py init <alias>` scaffolds a new overlay later, and `docs/overlay.md` explains the model.
+
+### Step 7 — Tell the user what happened
 
 In your final message to the user, include:
 
 1. **Status**: `installed` or `already-installed (only step 5 ran)`.
 2. **Backups**: list any `*.bak.<timestamp>` directories created. Mention they're rollback insurance and can be removed after ~1 week of stable use.
-3. **Restart**: tell them to restart the CLI to pick up the new MCP entry. If `uvx` reports "package not found", the maintainer hasn't pushed the latest tag to PyPI; use the local-fallback snippet from the Note above.
-4. **Uninstall hint**: to revert, manually restore the `.bak.*` directories and remove the symlinks. (A clean `--uninstall` flow lands later.)
+3. **Overlays**: which ones were added, which setup steps are still pending, or that the user said there were none.
+4. **Restart**: tell them to restart the CLI to pick up the new MCP entry.
+5. **Uninstall hint**: to revert, manually restore the `.bak.*` directories and remove the symlinks. (A clean `--uninstall` flow lands later.)
 
 ### Error handling rules
 
@@ -157,6 +193,7 @@ In your final message to the user, include:
 
 ### What NOT to do
 
-- Don't modify any file under `~/agents` other than the one config file from Step 5.
+- Don't modify anything under `~/agents` by hand. Step 5 touches your CLI's own config file; Step 6 goes through `scripts/overlay.py`, which writes only `overlays/` and the rendered artifacts.
+- Don't invent overlay URLs, and don't run an overlay's setup steps without the user's word — they execute commands that repo's author wrote.
 - Don't run `install.sh` separately — it just shells out to `install.py`.
 - Don't ask the user "is it okay if I clone the repo?" — they pasted this document, that *is* the consent. But do report what you did after each step.

@@ -91,11 +91,9 @@ Outstanding work for the unified agents harness and its companion MCP package. I
 - [x] **`mcp>=1.0` was an unbounded dependency and PyPI now serves 2.x**, where `FastMCP` was renamed to `MCPServer`. Every published version to date fails to start on a machine that resolves the dependency today — found by the container test, not by the unit tests, which never import `mcp`. `server.py` now imports whichever name exists, and the protocol E2E runs against both majors.
 - [x] **Docker fresh-env E2E test** — `test/e2e_v1.py` runs the whole story in the container built from `test/Dockerfile`: bootstrap on an empty `$HOME`, add a private overlay, settings and MCP writes, all three render scopes, routing, scaffolding, setup steps, drift and commits, then a scan of every tracked file for the overlay's freshly generated secret and hostname. 56 assertions. `test/e2e_mcp_protocol.py` additionally drives the installed server over stdio — 16 assertions, run against `mcp<2` and `mcp>=2`.
 - [ ] Run both container scripts in CI, not only by hand. They need docker and network, so they belong in a separate workflow from the unit tests.
-- [ ] **`INSTALLATION.md` live walkthrough** — once Docker E2E is wired,
-      run the doc end-to-end exactly as a fresh user would: paste the
-      file to a CLI agent inside the container, prompt
-      "이대로 설치해줘", confirm the agent reaches doctor: PASS without
-      manual intervention.
+- [x] **`INSTALLATION.md` walkthrough, automated** — `test/walkthrough_install.sh` runs every command the document tells the agent to run, in a clean container, and checks each one: clone, install, doctor, the MCP entry and its verification command, then the overlay step. 19 assertions. The doc drifting from what works now fails a test.
+- [ ] **`INSTALLATION.md` with a real agent** — the script proves the commands work; it does not prove an agent reads the document and chooses them. Paste the file into a CLI agent inside the container, prompt "이대로 설치해줘", and confirm it reaches doctor: PASS and asks about overlays without being told.
+- [ ] Publish the current version so `uvx integrated-harness-kit-mcp` works again. Until then Step 5 installs from the clone, which the document now says plainly.
 - [ ] **GitHub Actions CI** that runs `python3 scripts/test_install.py`
       and `python3 -m unittest discover -s mcp/tests` on PR. Optional
       matrix over Python 3.10/3.11/3.12. Once green, extend with a
