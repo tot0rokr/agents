@@ -37,6 +37,10 @@ docker run --rm -v "$PWD:/src:ro" agents-test bash -lc '
   python3 /home/agent/source/test/e2e_v1.py'
 ```
 
+`qa_v1.py` is the adversarial pass: path traversal through every name and path argument, corrupt and truncated state files, a registered overlay whose clone has been moved away, unwritable targets, an overlay whose `links` map points outside the repo, proof that setup steps never run except through `overlay_setup(yes=True)`, priority conflicts, idempotence, complete removal, a pre-overlay repo, unicode, and a repo with no `.git`. A tool is allowed to return an error; it is never allowed to raise.
+
+Each script bootstraps into `$HOME`, so give each one its own `docker run` — two in the same container fight over the home symlinks.
+
 `e2e_mcp_protocol.py` speaks MCP over stdio to the installed server: initialize, `tools/list`, then real calls. The unit tests import the tool functions directly and never load `mcp`, so this is the only place a registration or schema problem shows up — and where a dependency that no longer exists under that name would. Run it against both majors:
 
 ```bash

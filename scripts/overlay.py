@@ -194,13 +194,29 @@ def _planned_links(overlay: Overlay) -> list[tuple[Path, Path]]:
                 continue
             pairs.append((item, dst_dir / item.name))
 
-    # Escape hatch for anything the fixed namespaces don't cover.
+    # Escape hatch for anything the fixed namespaces don't cover. An overlay is
+    # a repo someone else may have written, so both ends are checked: it may
+    # only publish its own files, and only into this repo.
     for src_rel, dst_rel in overlay.manifest().get("links", {}).items():
         source = overlay.path / src_rel
+        if not _inside(source, overlay.path):
+            raise OverlayError(f"{overlay.alias}: links source '{src_rel}' escapes the overlay")
         if not source.exists():
             raise OverlayError(f"{overlay.alias}: links entry '{src_rel}' does not exist in the overlay")
-        pairs.append((source, overlay.repo_root / dst_rel))
+        target = overlay.repo_root / dst_rel
+        if not _inside(target, overlay.repo_root):
+            raise OverlayError(f"{overlay.alias}: links target '{dst_rel}' escapes the repo")
+        pairs.append((source, target))
     return pairs
+
+
+def _inside(path: Path, root: Path) -> bool:
+    try:
+        resolved = Path(os.path.normpath(str(path)))
+        root_resolved = Path(os.path.normpath(str(root)))
+        return resolved == root_resolved or root_resolved in resolved.parents
+    except (OSError, ValueError):
+        return False
 
 
 def _relative_symlink(source: Path, target: Path) -> Path:

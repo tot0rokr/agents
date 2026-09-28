@@ -78,21 +78,27 @@ def normalize(rel_path: str) -> str:
 
 
 def read_json(path: Path) -> dict:
+    """Always a dict: a file holding `[]` or `"x"` is as unusable as a broken one."""
     try:
-        return json.loads(path.read_text())
+        data = json.loads(path.read_text())
     except (OSError, json.JSONDecodeError):
         return {}
+    return data if isinstance(data, dict) else {}
 
 
 def applied_links(repo_root: Path) -> dict[str, str]:
     """Repo-relative path -> owning overlay alias, from the applied record."""
     data = read_json(repo_root / APPLIED_REL)
-    return {item["link"]: item["alias"] for item in data.get("links", []) if "link" in item}
+    return {
+        item["link"]: item.get("alias", "")
+        for item in data.get("links", [])
+        if isinstance(item, dict) and "link" in item
+    }
 
 
 def registered_overlays(repo_root: Path) -> list[dict]:
     data = read_json(repo_root / REGISTRY_REL)
-    entries = data.get("overlays", [])
+    entries = [e for e in data.get("overlays", []) if isinstance(e, dict)]
     return sorted(entries, key=lambda e: (e.get("priority", 50), e.get("alias", "")))
 
 

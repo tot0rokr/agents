@@ -9,6 +9,7 @@ overlay target, because the base repo is public.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from .. import layout, repo_scripts
@@ -16,6 +17,10 @@ from ._common import need_repo
 
 BASE_REL = "shared/mcp/servers.base.json"
 OVERLAY_FRAGMENT = "mcp/servers.json"
+
+# Server names become keys in JSON, TOML section headers and shell-adjacent
+# config, so keep them to what every renderer can represent.
+_NAME_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$")
 
 
 def mcp_server_set(
@@ -42,8 +47,11 @@ def mcp_server_set(
     repo_root, fail = need_repo(repo_path)
     if fail:
         return fail
-    if not name:
-        return {"ok": False, "error": "name must not be empty"}
+    if not _NAME_RE.match(name or ""):
+        return {
+            "ok": False,
+            "error": f"invalid server name {name!r}; use letters, digits, dot, dash or underscore",
+        }
     if bool(url) == bool(command):
         return {"ok": False, "error": "give exactly one of url or command"}
 
@@ -76,8 +84,11 @@ def mcp_server_set(
     servers = data.setdefault("servers", {})
     existed = name in servers
     servers[name] = entry
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+    except OSError as exc:
+        return {"ok": False, "error": f"cannot write {path}: {exc}"}
 
     return {
         "ok": True,

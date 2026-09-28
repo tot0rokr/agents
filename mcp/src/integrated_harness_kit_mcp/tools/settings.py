@@ -108,8 +108,11 @@ def settings_set(
     else:
         _place(data, key, value)
 
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+    except OSError as exc:
+        return {"ok": False, "error": f"cannot write {path}: {exc}"}
 
     rendered = _render(repo_root)
     return {

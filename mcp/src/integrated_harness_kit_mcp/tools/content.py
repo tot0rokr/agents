@@ -66,8 +66,11 @@ def scaffold(
         # A skill is a directory with SKILL.md inside; everything else is a file.
         path = repo_root / effective_rel / "SKILL.md" if pattern is None else repo_root / effective_rel
 
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(_template(kind, name, description, body))
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(_template(kind, name, description, body))
+    except OSError as exc:
+        return {"ok": False, "error": f"cannot write {path}: {exc}"}
 
     result = {
         "ok": True,
