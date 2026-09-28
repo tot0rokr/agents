@@ -72,7 +72,7 @@ Outstanding work for the unified agents harness and its companion MCP package. I
 - [x] `claude/settings.json` and `shared/mcp/servers.json` are render artifacts and untracked — Claude Code writes `autoMode.environment` (employer hostnames, repo paths) straight into the settings file, which used to land in a public repo's staging area.
 - [ ] Move environment-specific content out of the base repo into private overlays: the `~/worklog` hooks now sitting in `settings.base.json`, anything else naming a machine or an employer.
 - [ ] Publish `agents-overlay-example` as its own public repo, and teach `overlay.py init` to start from a git URL as well as the in-tree template.
-- [ ] Overlay tools in `integrated-harness-kit-mcp` — `overlay_add` / `overlay_install` / `overlay_status`, alongside the v0.5.0 maintenance set.
+- [x] Overlay tools in `integrated-harness-kit-mcp` — shipped in v1.0.0: `overlay_add` / `overlay_install` / `overlay_remove` / `overlay_setup` / `overlay_route` / `overlay_commit`, with overlay state folded into `status` and `audit_drift`.
 - [x] Setup steps — an overlay declares what its environment needs beyond files (credential files, daemons, logins) as `check` / `run` / `agent` / `manual` entries, and `overlay.py setup` works through them. Agent steps go to `claude -p` with a narrowed tool list and a guardrail prompt, or to a live session with `--interactive`. Nothing runs without `--yes`.
 - [ ] `overlay.py` unit tests — the full init/add/install/setup/status/update/remove path is only covered by manual scratch runs so far.
 - [ ] `render-mcp.sh` replaces a server's `env` / `headers` wholesale when it writes each tool's native config, so a value set only on that machine is lost on the next render. Make it merge those two keys instead.
