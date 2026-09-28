@@ -42,6 +42,10 @@ claude/shell-snapshots/
 claude/tasks/
 claude/telemetry/
 claude/plugins/marketplaces/
+claude/plugins/synced/
+claude/daemon-auth-cooldown
+claude/daemon-auth-status.json
+claude/policy-limits.json.stamp.json
 claude/stats-cache.json
 claude/gh-pr-status-cache.json
 # Per-session timestamps written by the timestamp-{prompt,stop} hooks.
@@ -78,6 +82,18 @@ codex/models_cache.json
 codex/.personality_migration
 codex/logs_*.sqlite*
 codex/state_*.sqlite*
+# The rest of Codex's per-machine state. thread_history_*.sqlite in particular
+# holds the text of past conversations — it reached 9 MB here — and none of
+# this belongs in a public repo.
+codex/*.sqlite
+codex/*.sqlite-shm
+codex/*.sqlite-wal
+codex/session_index.jsonl
+codex/.sandbox_migration
+codex/rules/
+codex/plugins/
+codex/mcp-oauth-locks/
+codex/thread-writer-locks/
 # Codex's bundled system skills (plugin-creator, skill-creator, openai-docs,
 # imagegen, skill-installer) live under codex/skills/.system/. Codex manages
 # that subdirectory itself; user-added skills under codex/skills/<name>/ stay
@@ -112,6 +128,12 @@ __pycache__/
 mcp/dist/
 mcp/build/
 mcp/**/*.egg-info/
+mcp/.codeindex/
+
+# Skills the CLIs sync down from a marketplace, and per-project state they
+# write. Neither is authored here.
+universal/skills/synced/
+gemini/projects.json
 
 # claude-account-switcher install.sh backups (~/.claude symlinks into this repo)
 *.pre-claude-auto.*.bak
