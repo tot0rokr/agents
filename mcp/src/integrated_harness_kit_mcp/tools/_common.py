@@ -50,3 +50,15 @@ def run(
 
 def git(args: list[str], cwd: Path, timeout: float = 30.0) -> dict:
     return run(["git", *args], cwd=cwd, timeout=timeout)
+
+
+def identity_error(result: dict, cwd: Path) -> str | None:
+    """Turn git's identity complaint into something a caller can act on."""
+    stderr = result.get("stderr", "")
+    if "Author identity unknown" in stderr or "Please tell me who you are" in stderr:
+        return (
+            f"git has no author identity for {cwd}. Set it per-repo — "
+            "git -C <repo> config user.name / user.email — choosing the identity "
+            "that matches the remote's domain."
+        )
+    return None

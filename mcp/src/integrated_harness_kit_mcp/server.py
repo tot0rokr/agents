@@ -7,7 +7,10 @@ with FastMCP and exposes the `main()` console-script entry point.
 
 from __future__ import annotations
 
-from mcp.server.fastmcp import FastMCP
+try:  # mcp 1.x
+    from mcp.server.fastmcp import FastMCP as _McpServer
+except ModuleNotFoundError:  # mcp 2.x renamed FastMCP to MCPServer
+    from mcp.server.mcpserver import MCPServer as _McpServer
 
 from .tools.bootstrap import bootstrap
 from .tools.content import remove_content, scaffold
@@ -27,7 +30,7 @@ from .tools.render import render
 from .tools.settings import settings_get, settings_set
 from .tools.status import capabilities, status
 
-mcp = FastMCP("integrated-harness-kit")
+mcp = _McpServer("integrated-harness-kit")
 
 # Diagnostics.
 mcp.tool()(status)

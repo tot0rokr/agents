@@ -12,7 +12,7 @@ import re
 from pathlib import Path
 
 from .. import layout
-from ._common import git, need_repo, run
+from ._common import git, identity_error, need_repo, run
 from .overlay import overlay_install
 from .render import render as _render
 
@@ -160,13 +160,17 @@ def commit(
 
     committed = git(["commit", "-m", message], cwd=repo_root)
     head = git(["log", "-1", "--format=%h %s"], cwd=repo_root)
-    return {
+    payload = {
         "ok": committed["ok"],
         "repo": str(repo_root),
         "staged": check["stdout"].split(),
         "head": head["stdout"].strip(),
         "commit": committed,
     }
+    identity = identity_error(committed, repo_root)
+    if identity:
+        payload["error"] = identity
+    return payload
 
 
 def _overlay_drift(repo_root: Path) -> list[dict]:

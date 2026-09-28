@@ -11,7 +11,7 @@ import subprocess
 from pathlib import Path
 
 from .. import layout
-from ._common import git, need_repo
+from ._common import git, identity_error, need_repo
 
 
 def overlay_list(repo_path: str | None = None) -> dict:
@@ -155,13 +155,17 @@ def overlay_commit(
 
     committed = git(["commit", "-m", message], cwd=root)
     head = git(["log", "-1", "--format=%h %s"], cwd=root)
-    return {
+    payload = {
         "ok": committed["ok"],
         "alias": alias,
         "files": status["stdout"].split(),
         "head": head["stdout"].strip(),
         "commit": committed,
     }
+    identity = identity_error(committed, root)
+    if identity:
+        payload["error"] = identity
+    return payload
 
 
 def _script(repo_root: Path, args: list[str], timeout: float = 120.0) -> dict:

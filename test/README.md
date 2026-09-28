@@ -22,6 +22,32 @@ docker run -it --rm agents-test
 Drops you into a `bash` shell as user `agent` with `$HOME=/home/agent`.
 `python3`, `git`, `uvx`, `jq`, `rsync` are on PATH.
 
+## Automated runs
+
+Two scripts drive the container without a human in it.
+
+`e2e_v1.py` plays out what someone with a new laptop does — bootstrap the harness, add a private overlay from a local "internal" repo, change settings, add MCP servers, render every scope, route a path, scaffold content, run the overlay's setup steps, commit — and asserts the result on disk rather than trusting what the tools reported. It ends by scanning every tracked file for the overlay's credentials and hostname, which are generated fresh each run so no fixture string can satisfy or trip the check.
+
+```bash
+docker build -t agents-test -f test/Dockerfile .
+docker run --rm -v "$PWD:/src:ro" agents-test bash -lc '
+  git config --global user.name agent && git config --global user.email agent@test
+  cp -r /src /home/agent/source
+  cd /home/agent/source && rm -f .git && git init -q -b main && git add -A && git commit -qm snapshot
+  python3 /home/agent/source/test/e2e_v1.py'
+```
+
+`e2e_mcp_protocol.py` speaks MCP over stdio to the installed server: initialize, `tools/list`, then real calls. The unit tests import the tool functions directly and never load `mcp`, so this is the only place a registration or schema problem shows up — and where a dependency that no longer exists under that name would. Run it against both majors:
+
+```bash
+for spec in "mcp<2" "mcp>=2"; do
+  uv venv -q /home/agent/venv && uv pip install -q --python /home/agent/venv/bin/python /home/agent/source/mcp "$spec"
+  MCP_SERVER_CMD=/home/agent/venv/bin/integrated-harness-kit-mcp \
+    /home/agent/venv/bin/python /home/agent/source/test/e2e_mcp_protocol.py /home/agent/agents
+  rm -rf /home/agent/venv
+done
+```
+
 ## Suggested walkthrough
 
 Inside the container — exactly what INSTALLATION.md tells an agent to do:

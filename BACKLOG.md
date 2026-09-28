@@ -87,13 +87,10 @@ Outstanding work for the unified agents harness and its companion MCP package. I
 - [x] **`v0.3.1` published** — wheel + sdist on
       https://pypi.org/project/integrated-harness-kit-mcp/0.3.1/ and on
       TestPyPI. `uvx integrated-harness-kit-mcp` resolves end-to-end.
-- [ ] **`v0.4.0` publish** — wheel + sdist built and `twine check`ed.
-      TestPyPI and PyPI upload still pending (see `mcp/dist/`). Needs
-      Docker E2E verification (below) before going public.
-- [ ] **Docker fresh-env E2E test** — `test/Dockerfile` runs a clean
-      Ubuntu + python3 + git + uv container so the maintainer can `exec`
-      in and replay `INSTALLATION.md` step-by-step. Verifies the bootstrap
-      story against a machine that has *never* seen this repo.
+- [ ] **`v1.0.0` publish** — supersedes the unpublished v0.4.0 build in `mcp/dist/`. Blocked on nothing but the release chore now that the container E2E passes.
+- [x] **`mcp>=1.0` was an unbounded dependency and PyPI now serves 2.x**, where `FastMCP` was renamed to `MCPServer`. Every published version to date fails to start on a machine that resolves the dependency today — found by the container test, not by the unit tests, which never import `mcp`. `server.py` now imports whichever name exists, and the protocol E2E runs against both majors.
+- [x] **Docker fresh-env E2E test** — `test/e2e_v1.py` runs the whole story in the container built from `test/Dockerfile`: bootstrap on an empty `$HOME`, add a private overlay, settings and MCP writes, all three render scopes, routing, scaffolding, setup steps, drift and commits, then a scan of every tracked file for the overlay's freshly generated secret and hostname. 56 assertions. `test/e2e_mcp_protocol.py` additionally drives the installed server over stdio — 16 assertions, run against `mcp<2` and `mcp>=2`.
+- [ ] Run both container scripts in CI, not only by hand. They need docker and network, so they belong in a separate workflow from the unit tests.
 - [ ] **`INSTALLATION.md` live walkthrough** — once Docker E2E is wired,
       run the doc end-to-end exactly as a fresh user would: paste the
       file to a CLI agent inside the container, prompt
