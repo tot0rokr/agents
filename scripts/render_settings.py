@@ -135,11 +135,15 @@ def check_base(base: dict) -> list[str]:
 def collect_fragments(repo_root: Path, rel: str = FRAGMENT_REL) -> list[dict]:
     from overlay import enabled_overlays  # local import: overlay imports this module
 
+    # A sibling *.local.json is this machine's override of the overlay's own
+    # fragment (autoMode, for one, describes a single machine). Overlays keep
+    # *.local.json out of git, so it never follows the overlay elsewhere.
+    local_rel = str(Path(rel).with_suffix(".local.json"))
     fragments = []
     for entry in enabled_overlays(repo_root):
-        fragment = entry.path / rel
-        if fragment.is_file():
-            fragments.append(substitute(load_json(fragment), entry.variables()))
+        for fragment in (entry.path / rel, entry.path / local_rel):
+            if fragment.is_file():
+                fragments.append(substitute(load_json(fragment), entry.variables()))
     return fragments
 
 

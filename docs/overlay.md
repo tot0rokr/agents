@@ -16,6 +16,7 @@ commands/*.md         → shared/commands/
 subagents/*.md        → shared/subagents/
 skills/<name>/        → universal/skills/
 settings/claude.json  → merged into claude/settings.json
+settings/claude.local.json → merged right after it, on this machine only (*.local.json stays out of the overlay's git)
 mcp/servers.json      → merged into shared/mcp/servers.json
 vars.json             # ${VAR} values for JSON fragments (never commit to a public overlay)
 ```
@@ -69,6 +70,8 @@ So the file is split:
 Render order is base, then each enabled overlay by ascending priority, then a final pass that carries over every key the live file has but no source manages. That last pass is what keeps runtime-written state working while leaving it untracked forever.
 
 `LOCAL_ONLY_KEYS` in `render_settings.py` lists keys that must never appear in the tracked base. `render_settings.py --check` fails if one does, and `doctor.sh` runs that check.
+
+A key like `autoMode` describes one machine, so an overlay that serves several machines should not carry it in its shared `settings/claude.json` either. Put it in `settings/claude.local.json` beside it: the renderer merges that file right after the overlay's own fragment, and the overlay's `.gitignore` keeps `*.local.json` on the machine that wrote it. `mcp/servers.local.json` works the same way.
 
 Editing `claude/settings.json` by hand still works — the edit survives as unmanaged state — but it will not be tracked. Anything you want tracked belongs in `settings.base.json`; anything environment-specific belongs in an overlay.
 

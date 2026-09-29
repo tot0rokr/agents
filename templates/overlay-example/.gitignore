@@ -1,0 +1,3 @@
+# Machine-local fragments (settings/claude.local.json, mcp/servers.local.json)
+# describe only the machine that wrote them. Never commit them.
+*.local.json
