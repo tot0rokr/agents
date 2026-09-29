@@ -110,6 +110,11 @@
     "command": "bash \"$HOME/.local/bin/claude-auto-statusline\""
   },
   "effortLevel": "xhigh",
+  "modelSettings": {
+    "claude-opus-5-5": {
+      "effortLevel": "xhigh"
+    }
+  },
   "skipWorkflowUsageWarning": true,
   "theme": "dark-daltonized",
   "autoCompactEnabled": true,
