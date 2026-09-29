@@ -90,6 +90,16 @@
           }
         ]
       }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$HOME/.claude/hooks/tmux-pending.sh\" clear"
+          }
+        ]
+      }
     ]
   },
   "worktree": {
