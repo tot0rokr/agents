@@ -25,6 +25,8 @@ REGISTRY_REL = "overlays/registry.local.json"
 APPLIED_REL = "overlays/applied.local.json"
 TEMPLATE_REL = "templates/overlay-example"
 MANIFEST_NAME = "overlay.json"
+# Machine-only fragments render_settings merges; they must never be committed.
+LOCAL_FRAGMENT_RELS = ("settings/claude.local.json", "mcp/servers.local.json")
 VARS_NAME = "vars.json"
 
 EXCLUDE_BEGIN = "# >>> agents-overlay >>>"
@@ -382,7 +384,13 @@ def cmd_add(repo_root: Path, args, log) -> int:
 
     # Without --priority the overlay's own manifest decides, as documented.
     if args.priority is None:
-        entry.priority = int(entry.manifest().get("priority", 50))
+        declared = entry.manifest().get("priority", 50)
+        if isinstance(declared, bool) or not isinstance(declared, int):
+            raise OverlayError(
+                f"{entry.path / MANIFEST_NAME}: priority must be an integer, got {declared!r} — "
+                f"fix it or pass --priority, then rerun 'overlay.py add {args.alias}'"
+            )
+        entry.priority = declared
 
     overlays.append(entry)
     save_registry(repo_root, overlays)
@@ -460,6 +468,18 @@ def cmd_status(repo_root: Path, args, log) -> int:
         if overlay.cloned and _git(["status", "--porcelain"], cwd=overlay.path):
             log(f"DIRTY {overlay.alias} has uncommitted changes in {overlay.path}")
             problems += 1
+        for rel in LOCAL_FRAGMENT_RELS:
+            if not (overlay.path / rel).is_file():
+                continue
+            ignored = subprocess.run(
+                ["git", "check-ignore", "-q", rel], cwd=str(overlay.path), capture_output=True
+            )
+            if ignored.returncode != 0:
+                log(
+                    f"LOCAL {overlay.alias}/{rel} is not gitignored — add '*.local.json' "
+                    "to the overlay's .gitignore so it stays on this machine"
+                )
+                problems += 1
 
     if (repo_root / "claude" / "settings.base.json").is_file():
         for rel, merged in render_all(repo_root, write=False).items():

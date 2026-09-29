@@ -29,7 +29,9 @@ cd ../.. && scripts/overlay.py add personal && scripts/overlay.py install person
 | `subagents/*.md` | `shared/subagents/` | symlink |
 | `skills/<name>/` | `universal/skills/` | symlink |
 | `settings/claude.json` | `claude/settings.json` | deep merge |
+| `settings/claude.local.json` | `claude/settings.json` | deep merge after the above; this machine only, gitignored |
 | `mcp/servers.json` | `shared/mcp/servers.json` | deep merge |
+| `mcp/servers.local.json` | `shared/mcp/servers.json` | deep merge after the above; this machine only, gitignored |
 | `links` in `overlay.json` | any repo-relative path | symlink |
 | `setup` in `overlay.json` | the machine itself | `overlay.py setup` (shell, agent or manual) |
 | `setup/*.md` | — | prompts for the agent steps |

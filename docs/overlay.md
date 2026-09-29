@@ -18,6 +18,7 @@ skills/<name>/        → universal/skills/
 settings/claude.json  → merged into claude/settings.json
 settings/claude.local.json → merged right after it, on this machine only (*.local.json stays out of the overlay's git)
 mcp/servers.json      → merged into shared/mcp/servers.json
+mcp/servers.local.json → merged right after it, on this machine only
 vars.json             # ${VAR} values for JSON fragments (never commit to a public overlay)
 ```
 
@@ -73,13 +74,17 @@ Render order is base, then each enabled overlay by ascending priority, then a fi
 
 A key like `autoMode` describes one machine, so an overlay that serves several machines should not carry it in its shared `settings/claude.json` either. Put it in `settings/claude.local.json` beside it: the renderer merges that file right after the overlay's own fragment, and the overlay's `.gitignore` keeps `*.local.json` on the machine that wrote it. `mcp/servers.local.json` works the same way.
 
+A local fragment overrides its own overlay's shared fragment and nothing more: a higher-priority overlay's shared fragment is merged later and still wins. Overlays scaffolded by `init` get the `.gitignore` rule from the template; an older overlay needs `*.local.json` added by hand, and `overlay.py status` reports a `LOCAL` problem for any local fragment git would still pick up. Because the file lives nowhere else, `remove --purge` deletes this machine's only copy.
+
+The MCP tools `settings_set`, `mcp_server_set` and `mcp_server_remove` write these files with the target `overlay:<alias>:local`, and `settings_get` reports keys from them as `overlay:<alias>:local`.
+
 Editing `claude/settings.json` by hand still works — the edit survives as unmanaged state — but it will not be tracked. Anything you want tracked belongs in `settings.base.json`; anything environment-specific belongs in an overlay.
 
 ## Commands
 
 ```
 scripts/overlay.py add <alias> [<git-url>] [--ref REF] [--priority N]
-scripts/overlay.py install [<alias> | --all]
+scripts/overlay.py install [<alias>]
 scripts/overlay.py list
 scripts/overlay.py status
 scripts/overlay.py setup [<alias>] [--dry-run] [--yes] [--only ID...] [--interactive]
@@ -88,7 +93,7 @@ scripts/overlay.py remove <alias> [--purge]
 scripts/overlay.py init <dir> [--name NAME]
 ```
 
-`add` registers an overlay, cloning it into `overlays/<alias>` when nothing is there yet. When the clone is already in place — the machine the overlay was authored on, or one where you cloned it by hand — leave the URL off and it registers what it finds, taking the URL and ref from the clone itself. `install` applies. `update` pulls and re-applies. `remove` unlinks what the overlay contributed and re-renders; `--purge` also deletes the clone. `init` scaffolds from `templates/overlay-example/`, into `overlays/<alias>` for a bare alias or wherever a path points.
+`add` registers an overlay, cloning it into `overlays/<alias>` when nothing is there yet. When the clone is already in place — the machine the overlay was authored on, or one where you cloned it by hand — leave the URL off and it registers what it finds, taking the URL and ref from the clone itself. Without `--priority`, the priority comes from the overlay's `overlay.json` (50 if it declares none); it is read once, at `add`, so a later change to the manifest needs `remove` and `add` again to take effect. `install` applies every enabled overlay, or just the one named. `update` pulls and re-applies. `remove` unlinks what the overlay contributed and re-renders; `--purge` also deletes the clone. `init` scaffolds from `templates/overlay-example/`, into `overlays/<alias>` for a bare alias or wherever a path points.
 
 ## Routing records to the right overlay
 

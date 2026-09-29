@@ -42,7 +42,8 @@ def mcp_server_set(
         url: remote server; `transport` defaults to "http".
         command/args: local stdio server.
         env/headers: accepted only when target is an overlay.
-        target: "base" or "overlay:<alias>".
+        target: "base", "overlay:<alias>", or "overlay:<alias>:local" for
+                this machine only (the overlay's gitignored servers.local.json).
     """
     repo_root, fail = need_repo(repo_path)
     if fail:
@@ -138,11 +139,15 @@ def _target_path(repo_root: Path, target: str) -> tuple[Path, str | None, dict |
         return repo_root / BASE_REL, None, None
     if not target.startswith("overlay:"):
         return Path(), None, {"ok": False, "error": f"unknown target {target!r}"}
-    alias = target.split(":", 1)[1]
+    alias, _, variant = target.split(":", 1)[1].partition(":")
+    if variant not in ("", "local"):
+        return Path(), None, {"ok": False, "error": f"unknown target {target!r}"}
     known = {entry.get("alias") for entry in layout.registered_overlays(repo_root)}
     if alias not in known:
         return Path(), None, {"ok": False, "error": f"no overlay registered as {alias!r}"}
-    return layout.overlay_root(repo_root, alias) / OVERLAY_FRAGMENT, alias, None
+    path = layout.overlay_root(repo_root, alias) / OVERLAY_FRAGMENT
+    # "overlay:<alias>:local" is this machine's servers.local.json beside it.
+    return (path.with_suffix(".local.json") if variant else path), alias, None
 
 
 def _render(repo_root: Path) -> dict:

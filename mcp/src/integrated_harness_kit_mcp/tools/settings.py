@@ -27,8 +27,9 @@ def settings_get(key: str | None = None, repo_path: str | None = None) -> dict:
         key: a top-level key, or a dotted path like "permissions.defaultMode".
              Omit for everything.
 
-    Provenance is one of: base, overlay:<alias>, runtime (written by Claude
-    Code and preserved by the renderer), or missing.
+    Provenance is one of: base, overlay:<alias>, overlay:<alias>:local (the
+    overlay's machine-only settings/claude.local.json), runtime (written by
+    Claude Code and preserved by the renderer), or missing.
     """
     repo_root, fail = need_repo(repo_path)
     if fail:
@@ -71,9 +72,10 @@ def settings_set(
     Args:
         key: top-level key or dotted path.
         value: JSON-able value. Ignored when remove=True.
-        target: "base" (public, shared) or "overlay:<alias>" (private,
+        target: "base" (public, shared), "overlay:<alias>" (private,
                 environment-specific — anything naming a host, account or path
-                belongs here).
+                belongs here), or "overlay:<alias>:local" (this machine only,
+                e.g. autoMode; the overlay's gitignored claude.local.json).
     """
     repo_root, fail = need_repo(repo_path)
     if fail:
@@ -81,6 +83,7 @@ def settings_set(
     if not key:
         return {"ok": False, "error": "key must not be empty"}
 
+    shadow = None
     if target == "base":
         path = repo_root / BASE_REL
         local_only = _local_only_keys(repo_root)
@@ -89,15 +92,22 @@ def settings_set(
                 "ok": False,
                 "error": (
                     f"{key} is runtime state that must not be tracked "
-                    f"(LOCAL_ONLY_KEYS={sorted(local_only)}); use an overlay or leave it local"
+                    f"(LOCAL_ONLY_KEYS={sorted(local_only)}); "
+                    "use target 'overlay:<alias>:local' or leave it local"
                 ),
             }
     elif target.startswith("overlay:"):
-        alias = target.split(":", 1)[1]
+        alias, _, variant = target.split(":", 1)[1].partition(":")
+        if variant not in ("", "local"):
+            return {"ok": False, "error": f"unknown target {target!r}"}
         known = {entry.get("alias") for entry in layout.registered_overlays(repo_root)}
         if alias not in known:
             return {"ok": False, "error": f"no overlay registered as {alias!r}"}
         path = layout.overlay_root(repo_root, alias) / OVERLAY_FRAGMENT
+        if variant:
+            path = path.with_suffix(".local.json")
+        else:
+            shadow = path.with_suffix(".local.json")
     else:
         return {"ok": False, "error": f"unknown target {target!r}"}
 
@@ -115,7 +125,7 @@ def settings_set(
         return {"ok": False, "error": f"cannot write {path}: {exc}"}
 
     rendered = _render(repo_root)
-    return {
+    result = {
         "ok": rendered.get("ok", False),
         "repo": str(repo_root),
         "key": key,
@@ -123,6 +133,9 @@ def settings_set(
         "wrote": str(path.relative_to(repo_root)),
         "render": rendered,
     }
+    if shadow is not None and shadow.is_file() and _dig(layout.read_json(shadow), key)[1]:
+        result["warning"] = f"{key} is also set in {shadow.name}, which wins on this machine"
+    return result
 
 
 def _render(repo_root: Path) -> dict:
@@ -152,6 +165,10 @@ def _sources(repo_root: Path) -> list[tuple[str, dict]]:
         fragment = layout.overlay_root(repo_root, alias) / OVERLAY_FRAGMENT
         if fragment.is_file():
             out.append((f"overlay:{alias}", layout.read_json(fragment)))
+        # The renderer merges this machine's sibling right after the fragment.
+        local = fragment.with_suffix(".local.json")
+        if local.is_file():
+            out.append((f"overlay:{alias}:local", layout.read_json(local)))
     return out
 
 
