@@ -26,10 +26,10 @@ Outside tmux the script prints the command to run in a new terminal instead; pas
 
 ## Forking a busy session without asking it
 
-A session that is busy cannot run a skill until its turn ends, so the script also takes a pane: `--pane %N` forks the Claude session running in that tmux pane. Suggest this binding if the user wants to fork from any pane with a key (prefix + F), without waiting for the session:
+A session that is busy cannot run a skill until its turn ends, so the script also takes a pane: `--pane %N` forks the Claude session running in that tmux pane. Suggest this binding if the user wants to fork from any pane with a key (here prefix + C-b), without waiting for the session:
 
 ```tmux
-bind-key F run-shell "bash ~/.claude/skills/fork-session/fork-session.sh --pane '#{pane_id}'"
+bind-key C-b run-shell -b "bash ~/.claude/skills/fork-session/fork-session.sh --pane '#{pane_id}' --notify"
 ```
 
-Add it to the user's tmux config only if they ask.
+`-b` keeps tmux responsive while the fork starts, and `--notify` reports the result as a tmux message instead of printing over the pane. Check that the key is free in the user's prefix table first (`tmux list-keys -T prefix`), and add it to the user's tmux config only if they ask.

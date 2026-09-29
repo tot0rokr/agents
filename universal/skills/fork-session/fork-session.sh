@@ -10,11 +10,13 @@
 # usage: fork-session.sh [--pane %N | --session ID] [--split] [--tag TAG | --name NAME] [--dry-run]
 #   (no source)   the session this runs in ($CLAUDE_CODE_SESSION_ID), for the skill
 #   --pane %N     the Claude session running in that tmux pane, for a key binding:
-#                 bind-key F run-shell "bash ~/.claude/skills/fork-session/fork-session.sh --pane '#{pane_id}'"
+#                 bind-key C-b run-shell -b "bash ~/.claude/skills/fork-session/fork-session.sh --pane '#{pane_id}' --notify"
 #   --session ID  that session id
 #   --split       a pane beside the original instead of a new window
 #   --tag TAG     name the fork "<base>#TAG" instead of the next "<base>#N"
 #   --name NAME   the fork's whole name, as given
+#   --notify      report through tmux display-message instead of stdout (for a
+#                 key binding, where stdout would cover the pane)
 #   --dry-run     print what would run, start nothing
 #
 # Names: <base>#1, <base>#2, … where <base> is the original's name (Claude Code
@@ -23,19 +25,36 @@
 # of stacking suffixes. The tmux window gets the same name.
 set -uo pipefail
 
-die() { echo "fork-session: $*" >&2; exit 1; }
+notify=0
+for a in "$@"; do [[ "$a" == --notify ]] && notify=1; done
+tmux_say() {  # tmux_say <text> [pane]: a status-line message
+  # display-message runs its text through formats and strftime: "#S" would
+  # become the session name, and a pane id like "%0" is an invalid strftime
+  # conversion that blanks the whole message. From a run-shell job there is no
+  # "current client" either, so aim it at a pane and tmux finds its client.
+  # Shown for 3 s; the default display-time (750 ms) is gone before it is read.
+  local m=${1//#/##}
+  m=${m//%/%%}
+  tmux display-message -d 3000 ${2:+-t "$2"} "$m" 2>/dev/null
+}
+die() {
+  echo "fork-session: $*" >&2
+  (( notify )) && tmux_say "fork-session: $*" "${pane:-${TMUX_PANE:-}}"
+  exit 1
+}
 command -v jq >/dev/null 2>&1 || die "needs jq"
 
 pane="" sid="${CLAUDE_CODE_SESSION_ID:-}" split=0 name="" tag="" dry=0
 while (( $# )); do
   case "$1" in
+    --notify) shift ;;
     --pane) pane=${2:-}; sid=""; shift 2 ;;
     --session) sid=${2:-}; pane=""; shift 2 ;;
     --split) split=1; shift ;;
     --tag) tag=${2:-}; shift 2 ;;
     --name) name=${2:-}; shift 2 ;;
     --dry-run) dry=1; shift ;;
-    -h|--help) sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,27p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) die "unknown argument: $1 (see --help)" ;;
   esac
 done
@@ -165,5 +184,10 @@ for _ in $(seq 40); do
   sleep 0.5
   f=$(in_pane "$new_pane") && { new_sid=$(jq -r .sessionId "$f"); break; }
 done
-echo "forked $src_sid (${src_name:-unnamed}, pane $src_pane)"
-echo "  -> $(tmux display-message -p -t "$new_pane" '#{session_name}:#{window_index} (#{window_name})' 2>/dev/null) pane $new_pane, session ${new_sid:-starting…}, name $fork_name"
+where=$(tmux display-message -p -t "$new_pane" '#{session_name}:#{window_index}' 2>/dev/null)
+if (( notify )); then
+  tmux_say "forked ${src_name:-session} → $fork_name (window $where)" "$new_pane"
+else
+  echo "forked $src_sid (${src_name:-unnamed}, pane $src_pane)"
+  echo "  -> $where ($fork_name) pane $new_pane, session ${new_sid:-starting…}, name $fork_name"
+fi
