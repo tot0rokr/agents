@@ -4,8 +4,8 @@ Outstanding work for the unified agents harness and its companion MCP package. I
 
 ## Content to fill in
 
-- [x] `universal/skills/` — 3 registered (`bash-command-style`,
-      `critical-file-safety`, `git-commit-workflow`). Discoverable via
+- [x] `universal/skills/` — 4 registered (`bash-command-style`,
+      `critical-file-safety`, `git-commit-workflow`, `fork-session`). Discoverable via
       `~/.claude/skills` and `~/.agents/skills`.
 - [x] `shared/mcp/servers.json` — Linear MCP (remote HTTP, OAuth 2.1).
       `render-mcp.sh` handles remote vs stdio per tool.
