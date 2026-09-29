@@ -42,6 +42,7 @@ claude/shell-snapshots/
 claude/tasks/
 claude/telemetry/
 claude/plugins/marketplaces/
+claude/plugins/data/
 claude/plugins/synced/
 claude/plugins/.trash/
 claude/daemon-auth-cooldown
@@ -49,6 +50,9 @@ claude/daemon-auth-status.json
 claude/policy-limits.json.stamp.json
 claude/stats-cache.json
 claude/gh-pr-status-cache.json
+# SendFeedback drafts and Artifact scratch pages.
+claude/feedback/
+claude/scratchpads/
 # Per-session timestamps written by the timestamp-{prompt,stop} hooks.
 claude/.timestamp-state/
 # Background job/daemon runtime state (control.key is a secret — never track).
@@ -57,8 +61,14 @@ claude/daemon/
 claude/daemon.lock
 claude/daemon.log
 claude/daemon.status.json
+claude/daemon-auth-cooldown
+claude/daemon-auth-status.json
 # Chrome native-messaging host, installed at runtime.
 claude/chrome/
+# Skill sync cache. Claude Code writes it into ~/.claude/skills, which is a
+# symlink to universal/skills.
+universal/skills/synced/
+universal/skills/.trash/
 
 # Per-project runtime state, except the symlink to shared/memory.
 # install.sh creates ~/.claude/projects/-home-junho/memory as a symlink to
