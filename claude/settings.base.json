@@ -36,6 +36,16 @@
         ]
       }
     ],
+    "StopFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$HOME/.claude/hooks/tmux-pending.sh\" stop"
+          }
+        ]
+      }
+    ],
     "UserPromptSubmit": [
       {
         "hooks": [
@@ -45,7 +55,7 @@
           },
           {
             "type": "command",
-            "command": "bash \"$HOME/.claude/hooks/tmux-pending.sh\" clear"
+            "command": "bash \"$HOME/.claude/hooks/tmux-pending.sh\" work"
           }
         ]
       }
@@ -85,7 +95,7 @@
           },
           {
             "type": "command",
-            "command": "bash \"$HOME/.claude/hooks/tmux-pending.sh\" clear",
+            "command": "bash \"$HOME/.claude/hooks/tmux-pending.sh\" work",
             "async": true
           }
         ]
