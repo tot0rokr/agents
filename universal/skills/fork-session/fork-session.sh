@@ -7,28 +7,35 @@
 # original was (same wrapper such as claude-auto, same --plugin-dir/--settings/…
 # flags, same working directory) and opens right next to the original's window.
 #
-# usage: fork-session.sh [--pane %N | --session ID] [--split] [--name NAME] [--dry-run]
+# usage: fork-session.sh [--pane %N | --session ID] [--split] [--tag TAG | --name NAME] [--dry-run]
 #   (no source)   the session this runs in ($CLAUDE_CODE_SESSION_ID), for the skill
 #   --pane %N     the Claude session running in that tmux pane, for a key binding:
 #                 bind-key F run-shell "bash ~/.claude/skills/fork-session/fork-session.sh --pane '#{pane_id}'"
 #   --session ID  that session id
 #   --split       a pane beside the original instead of a new window
-#   --name NAME   the fork's display name (default: "<original name>-fork")
+#   --tag TAG     name the fork "<base>#TAG" instead of the next "<base>#N"
+#   --name NAME   the fork's whole name, as given
 #   --dry-run     print what would run, start nothing
+#
+# Names: <base>#1, <base>#2, … where <base> is the original's name (Claude Code
+# names sessions "<folder>-<2 chars>"; a nameless one gets exactly that from its
+# folder and session id). Forking a fork counts on from the same base instead
+# of stacking suffixes. The tmux window gets the same name.
 set -uo pipefail
 
 die() { echo "fork-session: $*" >&2; exit 1; }
 command -v jq >/dev/null 2>&1 || die "needs jq"
 
-pane="" sid="${CLAUDE_CODE_SESSION_ID:-}" split=0 name="" dry=0
+pane="" sid="${CLAUDE_CODE_SESSION_ID:-}" split=0 name="" tag="" dry=0
 while (( $# )); do
   case "$1" in
     --pane) pane=${2:-}; sid=""; shift 2 ;;
     --session) sid=${2:-}; pane=""; shift 2 ;;
     --split) split=1; shift ;;
+    --tag) tag=${2:-}; shift 2 ;;
     --name) name=${2:-}; shift 2 ;;
     --dry-run) dry=1; shift ;;
-    -h|--help) sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) die "unknown argument: $1 (see --help)" ;;
   esac
 done
@@ -111,7 +118,21 @@ for (( i = 1; i < ${#src_argv[@]}; i++ )); do
   fi
 done
 
-fork_name=${name:-${src_name:-$(basename "$cwd")}-fork}
+# --- the fork's name ---------------------------------------------------------------
+base=${src_name:-$(basename "$cwd")-${src_sid:0:2}}
+# the original is itself a fork: count on from its base ("x#2" -> "x"), but leave
+# alone a name the user happened to write with a "#" in it
+[[ " ${src_argv[*]} " == *" --fork-session "* && "$base" == *"#"* ]] && base=${base%#*}
+if [[ -n "$name" ]]; then fork_name=$name
+elif [[ -n "$tag" ]]; then fork_name="$base#${tag//[[:space:]#]/-}"
+else
+  # next free number among every session the registry has seen with this base
+  n=0
+  while read -r used; do
+    [[ "$used" =~ ^[0-9]+$ ]] && (( used > n )) && n=$used
+  done < <(jq -r --arg b "$base#" '(.name // "") | select(startswith($b)) | ltrimstr($b)' "$registry"/*.json 2>/dev/null)
+  fork_name="$base#$((n + 1))"
+fi
 cmd=("${launcher[@]}" "${carry[@]}" --resume "$src_sid" --fork-session --name "$fork_name")
 
 # If the fork dies at once (say the session cannot be resumed), keep the window
@@ -133,7 +154,8 @@ if (( split )); then
 else
   # new-window takes a window, not a pane, as its target
   win=${target:+$(tmux display-message -p -t "$target" '#{window_id}' 2>/dev/null)}
-  new_pane=$(tmux new-window -a -P -F '#{pane_id}' ${win:+-t "$win"} -n "fork:${src_name:-claude}" -c "$cwd" "$shell_cmd") \
+  # tmux expands formats in -n ("#S" would become the session name): double the #
+  new_pane=$(tmux new-window -a -P -F '#{pane_id}' ${win:+-t "$win"} -n "${fork_name//#/##}" -c "$cwd" "$shell_cmd") \
     || die "tmux new-window failed"
 fi
 

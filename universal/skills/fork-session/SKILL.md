@@ -12,8 +12,11 @@ bash ~/.claude/skills/fork-session/fork-session.sh
 ```
 
 - `--split` opens it as a pane beside this one instead of a new window.
-- `--name NAME` names the fork (default: this session's name plus `-fork`); the name shows in the prompt box, the terminal title and `/resume`.
+- `--tag TAG` names it `<base>#TAG` instead of the next number. When the user says what the fork is for (`/fork-session 설계질문`, "fork this to review the plan"), pass a short label from that as the tag.
+- `--name NAME` sets the whole name as given.
 - `--dry-run` prints the command without starting anything.
+
+Forks are named `<base>#1`, `<base>#2`, … (the next number the registry has not used), and the tmux window gets the same name, so the tab, the terminal title, the prompt box and `/resume` all say the same thing. `<base>` is this session's name; a session without one gets `<folder>-<first 2 chars of its id>`, the same shape Claude Code gives sessions. Forking a fork counts on from the same base (`agents-bc#3`, not `agents-bc#1#1`).
 
 After it runs, tell the user where the fork is (the script prints the tmux window, pane and new session id) and that they can switch to it and ask anything there; this session carries on with its task. Do not type into the fork yourself.
 
