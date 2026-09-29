@@ -61,13 +61,10 @@ claude/daemon/
 claude/daemon.lock
 claude/daemon.log
 claude/daemon.status.json
-claude/daemon-auth-cooldown
-claude/daemon-auth-status.json
 # Chrome native-messaging host, installed at runtime.
 claude/chrome/
-# Skill sync cache. Claude Code writes it into ~/.claude/skills, which is a
-# symlink to universal/skills.
-universal/skills/synced/
+# Skill sync trash. Claude Code writes it into ~/.claude/skills, which is a
+# symlink to universal/skills (the synced/ cache is ignored further down).
 universal/skills/.trash/
 
 # Per-project runtime state, except the symlink to shared/memory.
