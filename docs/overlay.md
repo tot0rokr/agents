@@ -102,8 +102,8 @@ Session summaries, journal entries and anything else written *about* a piece of 
 ```json
 {
   "claims": {
-    "remotes": ["*.mangoboost.io"],
-    "paths": ["~/bsp-work", "~/softhsm"],
+    "remotes": ["*.corp.example"],
+    "paths": ["~/work", "~/client-project"],
     "default": false
   }
 }
@@ -112,7 +112,7 @@ Session summaries, journal entries and anything else written *about* a piece of 
 `remotes` matches the `origin` host of the git repo containing the path; `paths` matches the path itself, by glob or by prefix. `overlay.py route <path>` answers with the winning alias — highest priority among the overlays that claim it, or the one marked `default` when nothing claims it.
 
 ```bash
-scripts/overlay.py route ~/softhsm                  # mangoboost
+scripts/overlay.py route ~/client-project           # work
 scripts/overlay.py route ~/agents                   # personal
 scripts/overlay.py route --explain                  # …and why, for the current directory
 scripts/overlay.py route --dir session-logs --mkdir # the directory to write into
@@ -121,8 +121,8 @@ scripts/overlay.py route --dir session-logs --mkdir # the directory to write int
 The routing is realised with links, so a tool that just writes to a fixed path still lands in the right repo. Each overlay owns a subdirectory of the records directory:
 
 ```
-claude/session-logs/mangoboost -> overlays/mangoboost/session-logs
-claude/session-logs/personal   -> overlays/personal/session-logs
+claude/session-logs/work     -> overlays/work/session-logs
+claude/session-logs/personal -> overlays/personal/session-logs
 ```
 
 The parent stays a plain gitignored directory in the base, so anything written without routing sits there, local and untracked, until someone files it.
@@ -231,7 +231,7 @@ One rough edge worth knowing: if you edit a *base* line of `shared/memory/MEMORY
 
 ## Known gaps
 
-`render-mcp.sh` rewrites each tool's native config — for Claude Code, `~/.claude.json` — from the rendered `servers.json`. A server whose definition deliberately omits a secret (the BSP knowledge base leaves out `NEO4J_PASSWORD`) would have that value stripped from the live config on the next render. Until the renderer merges rather than replaces per-server `env` and `headers`, run it knowing that, and re-supply the secret afterwards.
+`render-mcp.sh` rewrites each tool's native config — for Claude Code, `~/.claude.json` — from the rendered `servers.json`. A server whose definition deliberately omits a secret (an internal knowledge-base server that leaves out its database password, say) would have that value stripped from the live config on the next render. Until the renderer merges rather than replaces per-server `env` and `headers`, run it knowing that, and re-supply the secret afterwards.
 
 Memory pointer lines have no overlay path. `shared/memory/MEMORY.md` is one tracked file in the public base, so the one-line index entry for an overlay-provided memory has nowhere private to live. It needs the same base/fragment split the JSON artifacts got, or an include mechanism.
 
