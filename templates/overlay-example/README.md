@@ -35,7 +35,8 @@ cd ../.. && scripts/overlay.py add personal && scripts/overlay.py install person
 | `links` in `overlay.json` | any repo-relative path | symlink |
 | `setup` in `overlay.json` | the machine itself | `overlay.py setup` (shell, agent or manual) |
 | `setup/*.md` | — | prompts for the agent steps |
-| `vars.json` | — | `${VAR}` values for JSON fragments and prompts |
+| `vars.json` | — | `${VAR}` values for JSON fragments and prompts; `CLAUDE_HOME` defaults to this machine's home |
+| `vars.local.json` | — | this machine's overrides of `vars.json`; gitignored |
 
 Filenames must not collide with the base repo or with another overlay. `overlay.py install` refuses to apply rather than clobbering something.
 

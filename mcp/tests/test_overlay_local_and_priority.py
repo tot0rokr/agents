@@ -281,6 +281,51 @@ class LocalFragmentStatusTests(HarnessTestCase):
         self.assertEqual(proc.returncode, 0, proc.stdout)
 
 
+class VariableLayerTests(HarnessTestCase):
+    """CLAUDE_HOME defaults to this machine; vars.json, then vars.local.json, override."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.work = make_overlay(
+            self.repo,
+            "work",
+            priority=60,
+            servers={"kb": {"command": "${CLAUDE_HOME}/.local/bin/kb"}},
+            manifest_extra={"setup": [{"id": "home", "check": 'test "$CLAUDE_HOME" = "$HOME"'}]},
+        )
+        _ok(overlay_cli(self.repo, "add", "work"))
+
+    def _kb_command(self) -> str:
+        _ok(overlay_cli(self.repo, "install"))
+        servers = json.loads((self.repo / "shared" / "mcp" / "servers.json").read_text())["servers"]
+        return servers["kb"]["command"]
+
+    def test_claude_home_defaults_to_this_machines_home(self):
+        from pathlib import Path
+
+        self.assertEqual(self._kb_command(), f"{Path.home()}/.local/bin/kb")
+
+    def test_vars_json_overrides_the_default(self):
+        (self.work / "vars.json").write_text(json.dumps({"CLAUDE_HOME": "/srv/shared"}) + "\n")
+        self.assertEqual(self._kb_command(), "/srv/shared/.local/bin/kb")
+
+    def test_vars_local_json_overrides_vars_json(self):
+        (self.work / "vars.json").write_text(json.dumps({"CLAUDE_HOME": "/home/other-machine"}) + "\n")
+        (self.work / "vars.local.json").write_text(json.dumps({"CLAUDE_HOME": "/home/this-machine"}) + "\n")
+        self.assertEqual(self._kb_command(), "/home/this-machine/.local/bin/kb")
+
+    def test_setup_checks_see_the_same_default(self):
+        _ok(overlay_cli(self.repo, "install"))
+        self.assertNotIn("SETUP work/home pending", overlay_cli(self.repo, "status").stdout)
+        (self.work / "vars.local.json").write_text(json.dumps({"CLAUDE_HOME": "/nonexistent"}) + "\n")
+        self.assertIn("SETUP work/home pending", overlay_cli(self.repo, "status").stdout)
+
+    def test_status_flags_an_unignored_vars_local_json(self):
+        (self.work / "vars.local.json").write_text(json.dumps({"X": "1"}) + "\n")
+        _ok(overlay_cli(self.repo, "install"))
+        self.assertIn("LOCAL work/vars.local.json is not gitignored", overlay_cli(self.repo, "status").stdout)
+
+
 class TemplateIgnoresLocalFragmentsTests(HarnessTestCase):
     def test_init_scaffold_keeps_local_fragments_out_of_git(self):
         _ok(overlay_cli(self.repo, "init", "fresh"))

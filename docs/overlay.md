@@ -20,6 +20,7 @@ settings/claude.local.json → merged right after it, on this machine only (*.lo
 mcp/servers.json      → merged into shared/mcp/servers.json
 mcp/servers.local.json → merged right after it, on this machine only
 vars.json             # ${VAR} values for JSON fragments (never commit to a public overlay)
+vars.local.json       # this machine's ${VAR} overrides (gitignored like every *.local.json)
 ```
 
 Anything outside those namespaces goes through the manifest's `links` map, which takes an overlay-relative path to a repo-relative one and symlinks it as-is. Files or directories both work:
@@ -56,7 +57,7 @@ Markdown and skill drop-ins are symlinked from the overlay clone into the base t
 
 JSON fragments are merged, because two sources have to coexist in one file that the tool actually reads.
 
-`${VAR}` placeholders are substituted in JSON fragments only, from the overlay's own `vars.json`. Markdown drop-ins are symlinked verbatim — an overlay that needs private text in a memory file simply keeps that text in its own (private) repo, so there is nothing to substitute.
+`${VAR}` placeholders are substituted in JSON fragments and in the overlay's `memory/MEMORY.md` index fragment. Values come from three layers, later ones winning: a built-in `CLAUDE_HOME` set to this machine's home directory, the overlay's `vars.json`, then this machine's `vars.local.json`. Leave anything that differs per machine — a home path, a port — out of `vars.json`, or one machine's value ends up on every other. Markdown drop-ins are symlinked verbatim — an overlay that needs private text in a memory file simply keeps that text in its own (private) repo, so there is nothing to substitute.
 
 ## Rendered artifacts, not tracked ones
 
@@ -152,7 +153,7 @@ Some of an environment cannot be expressed as files: a credential file the MCP s
 
 A pending step is carried out by whichever of these it declares, in order: `run` (a shell command, for deterministic work), `agent` (a prompt file handed to Claude Code), or `manual` (text printed for the user, for anything a machine should not be doing on its own — collecting a secret, clicking through an SSO page). After `run` or `agent`, the check is re-evaluated, so the outcome is verified rather than assumed.
 
-Step commands and prompts see the overlay's `vars.json` as environment variables, and `${VAR}` in a prompt file is substituted before the agent sees it.
+Step commands and prompts see the same variables (built-in `CLAUDE_HOME`, `vars.json`, `vars.local.json`) as environment variables, and `${VAR}` in a prompt file is substituted before the agent sees it.
 
 ### How the agent step runs
 

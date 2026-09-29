@@ -25,9 +25,10 @@ REGISTRY_REL = "overlays/registry.local.json"
 APPLIED_REL = "overlays/applied.local.json"
 TEMPLATE_REL = "templates/overlay-example"
 MANIFEST_NAME = "overlay.json"
-# Machine-only fragments render_settings merges; they must never be committed.
-LOCAL_FRAGMENT_RELS = ("settings/claude.local.json", "mcp/servers.local.json")
+# Machine-only files (render fragments and variables); they must never be committed.
+LOCAL_FRAGMENT_RELS = ("settings/claude.local.json", "mcp/servers.local.json", "vars.local.json")
 VARS_NAME = "vars.json"
+VARS_LOCAL_NAME = "vars.local.json"
 
 EXCLUDE_BEGIN = "# >>> agents-overlay >>>"
 EXCLUDE_END = "# <<< agents-overlay <<<"
@@ -84,8 +85,15 @@ class Overlay:
         return json.loads(target.read_text()) if target.is_file() else {}
 
     def variables(self) -> dict:
-        target = self.path / VARS_NAME
-        return json.loads(target.read_text()) if target.is_file() else {}
+        # CLAUDE_HOME is this machine's home unless the overlay says otherwise;
+        # a committed vars.json would otherwise pin every machine to the one
+        # it was written on. vars.local.json is this machine's own override.
+        out = {"CLAUDE_HOME": str(Path.home())}
+        for name in (VARS_NAME, VARS_LOCAL_NAME):
+            target = self.path / name
+            if target.is_file():
+                out.update(json.loads(target.read_text()))
+        return out
 
     def as_entry(self) -> dict:
         return {
