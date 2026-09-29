@@ -28,6 +28,10 @@
           {
             "type": "command",
             "command": "bash \"$HOME/.claude/hooks/timestamp-stop.sh\""
+          },
+          {
+            "type": "command",
+            "command": "bash \"$HOME/.claude/hooks/tmux-pending.sh\" set"
           }
         ]
       }
@@ -38,6 +42,10 @@
           {
             "type": "command",
             "command": "bash \"$HOME/.claude/hooks/timestamp-prompt.sh\""
+          },
+          {
+            "type": "command",
+            "command": "bash \"$HOME/.claude/hooks/tmux-pending.sh\" clear"
           }
         ]
       }
@@ -48,6 +56,10 @@
           {
             "type": "command",
             "command": "bash \"$HOME/.claude/hooks/timestamp-notification.sh\""
+          },
+          {
+            "type": "command",
+            "command": "bash \"$HOME/.claude/hooks/tmux-pending.sh\" set"
           }
         ]
       }
@@ -69,6 +81,11 @@
           {
             "type": "command",
             "command": "\"$HOME/.local/bin/claude-auto\" __check >/dev/null 2>&1",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "bash \"$HOME/.claude/hooks/tmux-pending.sh\" clear",
             "async": true
           }
         ]
