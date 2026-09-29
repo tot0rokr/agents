@@ -348,7 +348,7 @@ def cmd_add(repo_root: Path, args, log) -> int:
         alias=args.alias,
         url=args.url or "",
         ref=args.ref,
-        priority=args.priority,
+        priority=args.priority if args.priority is not None else 50,
         repo_root=repo_root,
     )
 
@@ -380,9 +380,13 @@ def cmd_add(repo_root: Path, args, log) -> int:
             shutil.rmtree(entry.path, ignore_errors=True)
             raise OverlayError(f"{args.url} has no {MANIFEST_NAME} — not an overlay repo")
 
+    # Without --priority the overlay's own manifest decides, as documented.
+    if args.priority is None:
+        entry.priority = int(entry.manifest().get("priority", 50))
+
     overlays.append(entry)
     save_registry(repo_root, overlays)
-    log(f"added '{args.alias}' (priority {args.priority}). Run 'overlay.py install {args.alias}' to apply.")
+    log(f"added '{args.alias}' (priority {entry.priority}). Run 'overlay.py install {args.alias}' to apply.")
     return 0
 
 
@@ -737,7 +741,7 @@ def build_parser() -> argparse.ArgumentParser:
     add.add_argument("alias")
     add.add_argument("url", nargs="?", help="omit when overlays/<alias> is already a clone")
     add.add_argument("--ref", default="main")
-    add.add_argument("--priority", type=int, default=50)
+    add.add_argument("--priority", type=int, default=None)
     add.set_defaults(func=cmd_add)
 
     install = sub.add_parser("install", help="apply overlays and re-render settings")

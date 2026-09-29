@@ -76,15 +76,20 @@ def overlay_install(alias: str | None = None, repo_path: str | None = None) -> d
 def overlay_add(
     alias: str,
     url: str | None = None,
-    priority: int = 50,
+    priority: int | None = None,
     ref: str = "main",
     repo_path: str | None = None,
 ) -> dict:
-    """Register an overlay, cloning it when `overlays/<alias>` is not there yet."""
+    """Register an overlay, cloning it when `overlays/<alias>` is not there yet.
+
+    `priority` defaults to the overlay manifest's own value.
+    """
     repo_root, fail = need_repo(repo_path)
     if fail:
         return fail
-    args = ["add", alias] + ([url] if url else []) + ["--priority", str(priority), "--ref", ref]
+    args = ["add", alias] + ([url] if url else []) + ["--ref", ref]
+    if priority is not None:
+        args += ["--priority", str(priority)]
     return {"repo": str(repo_root), **_script(repo_root, args)}
 
 
