@@ -27,6 +27,9 @@ ARTIFACTS: dict[str, str] = {
     "shared/memory/MEMORY.md": "shared/memory/MEMORY.base.md",
 }
 
+# Tracked sources install.py applies to a file outside the repo, not rendered into it.
+HOME_SOURCES: tuple[str, ...] = ("claude/global-config.base.json",)
+
 # Rendered per-tool configs that this repo still tracks. They must only ever
 # receive base content — see `render`.
 PUBLIC_RENDERED: tuple[str, ...] = (
@@ -132,7 +135,7 @@ def classify(repo_root: Path, rel_path: str) -> str:
         if str(target).startswith(str(overlays)):
             return "overlay_owned"
 
-    if rel in ARTIFACTS.values():
+    if rel in ARTIFACTS.values() or rel in HOME_SOURCES:
         return "base_source"
     for directory, _ in CONTENT_KINDS.values():
         if rel.startswith(directory + "/"):

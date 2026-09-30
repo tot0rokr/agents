@@ -272,5 +272,41 @@ class TestDryRun(InstallTestBase):
         self.assertEqual(list(self.home.glob(".claude.bak.*")), [])
 
 
+class TestGlobalConfig(InstallTestBase):
+    def setUp(self) -> None:
+        super().setUp()
+        (self.repo / install_mod.GLOBAL_CONFIG_BASE_REL).write_text(
+            json.dumps({"leftArrowOpensAgents": False})
+        )
+        self.claude_json = self.home / ".claude.json"
+
+    def test_base_keys_win_and_runtime_state_is_kept(self):
+        self.claude_json.write_text(
+            json.dumps({"numStartups": 5, "leftArrowOpensAgents": True})
+        )
+
+        install(home=self.home, repo_root=self.repo)
+
+        self.assertEqual(
+            json.loads(self.claude_json.read_text()),
+            {"numStartups": 5, "leftArrowOpensAgents": False},
+        )
+        self.assertEqual(self.claude_json.stat().st_mode & 0o777, 0o600)
+
+    def test_fresh_machine_gets_the_file(self):
+        install(home=self.home, repo_root=self.repo)
+
+        self.assertEqual(
+            json.loads(self.claude_json.read_text()), {"leftArrowOpensAgents": False}
+        )
+
+    def test_dry_run_leaves_the_file_alone(self):
+        self.claude_json.write_text('{"leftArrowOpensAgents": true}')
+
+        install(home=self.home, repo_root=self.repo, dry_run=True)
+
+        self.assertEqual(self.claude_json.read_text(), '{"leftArrowOpensAgents": true}')
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

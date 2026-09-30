@@ -49,6 +49,10 @@ LINK_PATHS = [
 MEMORY_PARENT = ".claude/projects"
 SHARED_MEMORY_REL = "shared/memory"
 
+# Claude Code reads some options (leftArrowOpensAgents, for one) only from
+# ~/.claude.json, never from settings.json, so they cannot live in the base.
+GLOBAL_CONFIG_BASE_REL = "claude/global-config.base.json"
+
 
 # ---------------------------------------------------------------------------
 # Operation primitives — each captures enough state to undo itself.
@@ -340,6 +344,10 @@ class Installer:
             self._render_settings()
         except Exception as exc:  # noqa: BLE001
             self.log(f"warning: settings not rendered: {exc}")
+        try:
+            self._apply_global_config()
+        except Exception as exc:  # noqa: BLE001
+            self.log(f"warning: ~/.claude.json not updated: {exc}")
         # Install succeeded. Leave a human-readable guide for whatever Phase 3
         # could not carry over — best-effort, never fails the install.
         try:
@@ -357,6 +365,27 @@ class Installer:
         for rel, merged in render_all(self.repo_root).items():
             if merged:
                 self.log(f"RUN: render {rel}")
+
+    def _apply_global_config(self) -> None:
+        """Set the base's top-level keys in ~/.claude.json, keeping every other key.
+
+        The base wins the keys it names, like settings.base.json does. The rest
+        of the file is Claude Code's runtime state and is written back as is.
+        """
+        base_path = self.repo_root / GLOBAL_CONFIG_BASE_REL
+        if self.dry_run or not base_path.is_file():
+            return
+        base = json.loads(base_path.read_text())
+        target = self.home / ".claude.json"
+        live = json.loads(target.read_text()) if target.is_file() else {}
+        changed = sorted(key for key, val in base.items() if live.get(key) != val)
+        if not changed:
+            return
+        self.log(f"RUN: set {', '.join(changed)} in {target}")
+        tmp = target.with_name(target.name + ".install-tmp")
+        tmp.write_text(json.dumps({**live, **base}, indent=2, ensure_ascii=False) + "\n")
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, target)
 
     # ---- phase 1: top-level symlinks ----
 

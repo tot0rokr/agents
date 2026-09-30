@@ -70,6 +70,8 @@ This is the source of truth for setup. It runs three phases:
 2. **Phase 2** — Claude per-project memory unification. Any pre-existing `~/.claude/projects/<slug>/memory/` is merged into `~/agents/shared/memory/` and replaced with a symlink so all four agents read and write the same memory pool.
 3. **Phase 3** — runtime data restore. From the fresh `~/.claude.bak.<timestamp>` the installer copies back credentials, history, sessions, file-history, per-project transcripts, and merges `settings.local.json` permissions.
 
+After the phases it renders `claude/settings.json` and sets the keys in `claude/global-config.base.json` in `~/.claude.json`. Those are options Claude Code reads only from `~/.claude.json` (`leftArrowOpensAgents`, for one). Every other key in that file is kept. Re-run the installer to apply a key added to that base later.
+
 **Every mutation is tracked. If any step fails, the installer rolls back all completed mutations and exits non-zero.** If the script exits non-zero, report stderr verbatim to the user and stop — do not try to recover by hand.
 
 For dry-run preview, add `--dry-run`. You shouldn't need this unless the user asks.

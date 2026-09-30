@@ -29,6 +29,7 @@ class ClassifyTests(HarnessTestCase):
 
     def test_base_source_is_writable(self):
         self.assertEqual(self.layout.classify(self.repo, "claude/settings.base.json"), "base_source")
+        self.assertEqual(self.layout.classify(self.repo, "claude/global-config.base.json"), "base_source")
         self.assertEqual(self.layout.classify(self.repo, "shared/commands/foo.md"), "base_source")
         ok, _ = self.layout.writable(self.repo, "shared/commands/foo.md")
         self.assertTrue(ok)

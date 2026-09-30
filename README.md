@@ -25,6 +25,7 @@ agents/
 │   ├── CLAUDE.md                -> ../shared/AGENTS.md
 │   ├── settings.base.json       tracked base: hooks, permissions, model
 │   ├── settings.json            rendered from base + overlays (gitignored)
+│   ├── global-config.base.json  tracked: options Claude Code reads only from ~/.claude.json
 │   ├── skills/                  -> ../universal/skills
 │   ├── agents/                  -> ../shared/subagents
 │   ├── commands/                -> ../shared/commands
