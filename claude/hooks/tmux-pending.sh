@@ -121,8 +121,8 @@ look() {  # look <state>
   if [[ -z "$custom" ]]; then
     case "$1" in
       wait) custom=$(tmux show-options -gwv window-status-bell-style 2>/dev/null)
-            custom=${custom:-fg=#000000,bg=yellow,bold} ;;
-      seen) custom="fg=yellow,bold" ;;
+            custom=${custom:-fg=#000000,bg=yellow} ;;
+      seen) custom="fg=brightyellow" ;;
       bg)   custom="fg=colour39" ;;
       work) custom="fg=green" ;;
     esac
