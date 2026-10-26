@@ -16,3 +16,5 @@
 - [Act on sensible defaults, don't over-ask](feedback_act_dont_over_ask.md) — pick the reasonable option, state what I did, and proceed; reserve AskUserQuestion for genuine forks (destructive/outward-facing or truly ambiguous intent)
 - [Always create project instructions](feedback_always_create_project_instructions.md) — when scaffolding a new project, always add a project-level CLAUDE.md (tool-neutral); don't rely on the global one alone
 - [Pasted-code refactor style](feedback_pasted_code_refactor_style.md) — work from the paste (no repo search), keep top-of-function declarations and Yoda style, don't turn if/else into ternary, never change logic
+- [Question means design first](feedback_question_means_design_first.md) — "~할 수 있어?/~못함?/~면 좋겠다" about a build or redesign → reply with analysis + design and wait for an explicit go; read-only checks OK
+- [Isolate test editors from tmux](feedback_isolate_test_editors_from_tmux.md) — test vim/nvim: `env -u TMUX TMUX_TMPDIR=<short empty dir>`; tmuxline ignores $TMUX and hits the live server via the default socket
