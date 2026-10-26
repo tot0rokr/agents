@@ -71,12 +71,10 @@ claude/settings.json.bak.*
 # symlink to universal/skills (the synced/ cache is ignored further down).
 universal/skills/.trash/
 
-# Per-project runtime state, except the symlink to shared/memory.
-# install.sh creates ~/.claude/projects/-home-junho/memory as a symlink to
-# shared/memory; the symlink itself is tracked so the path is reproducible.
+# Per-project runtime state. install.sh links some of the memory/
+# directories in here to shared/memory, but the slugs are per machine, so
+# those links are recreated by the installer rather than tracked.
 claude/projects/
-!claude/projects/-home-junho/
-!claude/projects/-home-junho/memory
 
 # --- Codex runtime state ---
 codex/auth.json

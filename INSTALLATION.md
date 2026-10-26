@@ -67,7 +67,7 @@ python3 ~/agents/scripts/install.py
 This is the source of truth for setup. It runs three phases:
 
 1. **Phase 1** — top-level home symlinks. Existing real directories at `~/.claude`, `~/.codex`, `~/.config/opencode`, `~/.gemini`, `~/.agents` are backed up to `<path>.bak.<timestamp>` before being replaced with symlinks into `~/agents/`.
-2. **Phase 2** — Claude per-project memory unification. Any pre-existing `~/.claude/projects/<slug>/memory/` is merged into `~/agents/shared/memory/` and replaced with a symlink so all four agents read and write the same memory pool.
+2. **Phase 2** — Claude per-project memory unification. Every `~/.claude/projects/<slug>/memory/` that exists at install time, plus the one for the directory the installer runs from, is merged into `~/agents/shared/memory/` and replaced with a symlink so all four agents read and write the same memory pool. A project first opened later gets its own `memory/` directory, which stays local until the installer is run again.
 3. **Phase 3** — runtime data restore. From the fresh `~/.claude.bak.<timestamp>` the installer copies back credentials, history, sessions, file-history, per-project transcripts, and merges `settings.local.json` permissions.
 
 After the phases it renders `claude/settings.json` and sets the keys in `claude/global-config.base.json` in `~/.claude.json`. Those are options Claude Code reads only from `~/.claude.json` (`leftArrowOpensAgents`, for one). Every other key in that file is kept. Re-run the installer to apply a key added to that base later.

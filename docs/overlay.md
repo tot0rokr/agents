@@ -11,6 +11,7 @@ An overlay mirrors the base repo's content namespaces:
 ```
 overlay.json          # manifest: name, priority, description
 memory/*.md           → shared/memory/
+memory/MEMORY.md      → appended to shared/memory/MEMORY.md (index lines for the memories above)
 instructions/*.md     → shared/instructions/
 commands/*.md         → shared/commands/
 subagents/*.md        → shared/subagents/
@@ -80,6 +81,10 @@ A local fragment overrides its own overlay's shared fragment and nothing more: a
 The MCP tools `settings_set`, `mcp_server_set` and `mcp_server_remove` write these files with the target `overlay:<alias>:local`, and `settings_get` reports keys from them as `overlay:<alias>:local`.
 
 Editing `claude/settings.json` by hand still works — the edit survives as unmanaged state — but it will not be tracked. Anything you want tracked belongs in `settings.base.json`; anything environment-specific belongs in an overlay.
+
+The memory index gets the same split. `shared/memory/MEMORY.base.md` is tracked; `shared/memory/MEMORY.md` is rendered from it, then each enabled overlay's `memory/MEMORY.md` by ascending priority, then every line the live file has that no source claims. Agents append index lines to the live file at runtime, and that last pass is what keeps them.
+
+A memory an agent writes therefore lands in `shared/memory/` as an untracked file, with its index line carried only in the rendered `MEMORY.md`. It stays on this machine until someone files it: into the base (the file plus a line in `MEMORY.base.md`) when it is safe to publish, or into an overlay (the file plus a line in that overlay's `memory/MEMORY.md`) when it is not. A memory that only matters inside one project can go to that project's own `~/.claude/projects/<slug>/memory/` instead, provided that slug is not linked to `shared/memory`; only Claude Code sessions started in that directory see it, and no repo tracks it.
 
 ## Commands
 
@@ -208,7 +213,9 @@ For a work environment, host it on the employer's git server. Internal details n
 
 `shared/mcp/servers.json` is rendered the same way, from `shared/mcp/servers.base.json` plus each overlay's `mcp/servers.json`. An internal MCP server — one whose URL or command names an employer host — belongs in a private overlay, never in the base.
 
-Nothing writes `servers.json` at runtime, so it needs no unmanaged-key preservation: removing an overlay removes its servers cleanly. `render-mcp.sh` reads the rendered file and is unchanged, so the per-tool configs pick up overlay servers on the next render.
+Nothing writes `servers.json` at runtime, so it needs no unmanaged-key preservation: removing an overlay removes its servers cleanly.
+
+`render-mcp.sh` reads two sources. Only `~/.claude.json`, which lives outside the repo, gets the rendered set with overlay servers; the tracked per-tool configs (`codex/config.toml`, `opencode/opencode.json`, `gemini/settings.json`) are rendered from `servers.base.json` alone, and `doctor.sh` fails if an overlay-only server shows up in one of them. Into `~/.claude.json` it merges per server, so a value that exists only on this machine — a password left out of every repo — and a server registered there by hand both survive the render.
 
 Tokens and passwords do not belong in an overlay either. Reference them from the environment in the server definition and keep the values in your secret store.
 
@@ -231,9 +238,5 @@ Editing a rendered artifact is always temporary. `claude/settings.json`, `shared
 One rough edge worth knowing: if you edit a *base* line of `shared/memory/MEMORY.md` in place, the render keeps your edited line — it looks like a line no source claims — and restores the original alongside it, so the index ends up with both. Edit `MEMORY.base.md` or the overlay's fragment instead.
 
 ## Known gaps
-
-`render-mcp.sh` rewrites each tool's native config — for Claude Code, `~/.claude.json` — from the rendered `servers.json`. A server whose definition deliberately omits a secret (an internal knowledge-base server that leaves out its database password, say) would have that value stripped from the live config on the next render. Until the renderer merges rather than replaces per-server `env` and `headers`, run it knowing that, and re-supply the secret afterwards.
-
-Memory pointer lines have no overlay path. `shared/memory/MEMORY.md` is one tracked file in the public base, so the one-line index entry for an overlay-provided memory has nowhere private to live. It needs the same base/fragment split the JSON artifacts got, or an include mechanism.
 
 `.git/info/exclude` is shared by every worktree of the repo, so applying an overlay inside a worktree also hides those paths in the main checkout. Harmless when the names do not collide, but worth knowing when testing an overlay from a worktree.

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Render the tool-facing config artifacts from tracked bases plus overlay fragments.
 
-Two artifacts today: claude/settings.json and shared/mcp/servers.json.
+Three artifacts today: claude/settings.json, shared/mcp/servers.json and
+shared/memory/MEMORY.md.
 
 Design and rationale: docs/overlay.md
 """
@@ -309,7 +310,7 @@ def init_base(repo_root: Path, write: bool = True) -> dict:
 
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(description="Render claude/settings.json.")
+    p = argparse.ArgumentParser(description="Render claude/settings.json, shared/mcp/servers.json and shared/memory/MEMORY.md.")
     p.add_argument("--repo", type=Path, default=None, help="override repo root")
     p.add_argument("--check", action="store_true", help="verify the base tracks no local-only keys")
     p.add_argument("--init-base", action="store_true", help="seed the base from the live file")

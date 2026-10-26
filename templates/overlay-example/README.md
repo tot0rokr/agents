@@ -24,6 +24,7 @@ cd ../.. && scripts/overlay.py add personal && scripts/overlay.py install person
 | Path | Lands in | Applied as |
 |---|---|---|
 | `memory/*.md` | `shared/memory/` | symlink |
+| `memory/MEMORY.md` | `shared/memory/MEMORY.md` | appended after the base index, by priority |
 | `instructions/*.md` | `shared/instructions/` | symlink |
 | `commands/*.md` | `shared/commands/` | symlink |
 | `subagents/*.md` | `shared/subagents/` | symlink |

@@ -77,7 +77,8 @@ Outstanding work for the unified agents harness and its companion MCP package. I
 - [ ] `overlay.py` unit tests — the full init/add/install/setup/status/update/remove path is only covered by manual scratch runs so far.
 - [x] `render-mcp.sh` used to replace `~/.claude.json`'s `mcpServers` wholesale, dropping a value that existed only on that machine and any server registered there by hand. It now merges per server, with the canonical source winning the keys it defines.
 - [x] `render-mcp.sh` is safe to run by hand again. It reads two sources now: the tracked per-tool configs come from `servers.base.json`, and only `~/.claude.json` gets the overlay-merged set. `doctor.sh` fails if an overlay-only server ever appears in one of the tracked files, so the guarantee is checked rather than assumed.
-- [ ] Memory pointer lines have no overlay path — `shared/memory/MEMORY.md` is a single tracked file in the public base, so the index line for an overlay-provided memory has nowhere private to live. Needs the same base/fragment split as the JSON artifacts.
+- [x] Memory pointer lines have an overlay path. `shared/memory/MEMORY.md` is rendered from the tracked `MEMORY.base.md` plus each overlay's `memory/MEMORY.md` fragment, and lines agents append at runtime are carried over.
+- [ ] Memories agents write stay untracked until filed by hand. Agents write into `shared/memory/` directly, so a new memory is an untracked base file whose index line lives only in the rendered `MEMORY.md`. Nothing reminds anyone to move it into the base or an overlay; `doctor.sh` could list them.
 
 ## Publishing & CI
 
@@ -105,10 +106,9 @@ Outstanding work for the unified agents harness and its companion MCP package. I
 
 ## Housekeeping
 
-- [ ] `shared/memory/user_git_identity.md` + the matching line in
-      `shared/memory/MEMORY.md` — still uncommitted. Holds the user's
-      work email; this is a public repo. Decide: mask the email and
-      commit, or keep working-tree only forever.
+- [x] `shared/memory/user_git_identity.md` + the matching line in
+      `shared/memory/MEMORY.md` — moved into the work overlay with its
+      index line, so the work email never reaches this public repo.
 - [ ] `~/.claude.bak.20260512-183533` and
       `~/.config/opencode.bak.20260512-183533` — remove after ~1 week
       of stable use (currently retained as rollback insurance).
