@@ -27,8 +27,10 @@ claude/.last-cleanup
 claude/.last-update-result.json
 claude/history.jsonl
 claude/policy-limits.json
+claude/policy-limits.json.*
 claude/mcp-needs-auth-cache.json
 claude/remote-settings.json
+claude/remote-settings.json.*
 claude/backups/
 claude/cache/
 claude/downloads/
@@ -41,13 +43,12 @@ claude/sessions/
 claude/shell-snapshots/
 claude/tasks/
 claude/telemetry/
-claude/plugins/marketplaces/
-claude/plugins/data/
-claude/plugins/synced/
-claude/plugins/.trash/
+claude/state/
+# Installed plugins, their caches and registries. Claude Code writes all of
+# it, and the registries hold this machine's absolute paths.
+claude/plugins/
 claude/daemon-auth-cooldown
 claude/daemon-auth-status.json
-claude/policy-limits.json.stamp.json
 claude/stats-cache.json
 claude/gh-pr-status-cache.json
 # SendFeedback drafts and Artifact scratch pages.
@@ -63,6 +64,9 @@ claude/daemon.log
 claude/daemon.status.json
 # Chrome native-messaging host, installed at runtime.
 claude/chrome/
+# Backups of the rendered settings.json taken before editing it. They carry
+# the same runtime state that keeps settings.json itself out of git.
+claude/settings.json.bak.*
 # Skill sync trash. Claude Code writes it into ~/.claude/skills, which is a
 # symlink to universal/skills (the synced/ cache is ignored further down).
 universal/skills/.trash/
@@ -102,6 +106,13 @@ codex/rules/
 codex/plugins/
 codex/mcp-oauth-locks/
 codex/thread-writer-locks/
+codex/tui-thread-reference-capabilities/
+codex/.sqlite-maintenance.lock
+# The app-server daemon: its control socket, pid files and logs, and the
+# release binaries it downloads (two releases took 834 MB here).
+codex/app-server-control/
+codex/app-server-daemon/
+codex/packages/
 # Codex's bundled system skills (plugin-creator, skill-creator, openai-docs,
 # imagegen, skill-installer) live under codex/skills/.system/. Codex manages
 # that subdirectory itself; user-added skills under codex/skills/<name>/ stay
