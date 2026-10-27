@@ -59,6 +59,11 @@ class ClassifyTests(HarnessTestCase):
         for rel in ("codex/config.toml", "gemini/settings.json", "opencode/opencode.json"):
             self.assertEqual(self.layout.classify(self.repo, rel), "artifact", rel)
 
+    def test_codex_artifacts_and_their_base(self):
+        self.assertEqual(self.layout.classify(self.repo, "codex/AGENTS.override.md"), "artifact")
+        self.assertEqual(self.layout.classify(self.repo, "codex/config.base.toml"), "base_source")
+        self.assertNotIn("codex/config.toml", self.layout.PUBLIC_RENDERED)
+
     def test_base_provenance_when_not_overlaid(self):
         (self.repo / "shared" / "commands" / "own.md").write_text("---\ndescription: x\n---\n")
         self.assertEqual(

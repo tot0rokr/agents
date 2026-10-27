@@ -154,9 +154,14 @@ def _render(repo_root: Path) -> dict:
     module = repo_scripts.load(repo_root, "render_settings")
     if module is None or not hasattr(module, "render_mcp"):
         return {"ok": False, "error": "repo has no render_settings.render_mcp()"}
+    written = ["shared/mcp/servers.json"]
     try:
         with repo_scripts.scripts_on_path(repo_root):
-            module.render_mcp(repo_root)
+            servers = module.render_mcp(repo_root)
+            # Codex keeps its servers inside its own rendered config.
+            if hasattr(module, "render_codex"):
+                module.render_codex(repo_root, servers=servers)
+                written.append("codex/config.toml")
     except Exception as exc:  # noqa: BLE001
         return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
-    return {"ok": True, "written": "shared/mcp/servers.json"}
+    return {"ok": True, "written": ", ".join(written)}

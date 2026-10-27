@@ -427,7 +427,7 @@ def main() -> int:
     proc = subprocess.run(["bash", str(script)], cwd=str(REPO), capture_output=True, text=True)
     check("render-mcp.sh exits 0", proc.returncode == 0, proc.stderr[-300:])
 
-    for rel in ("codex/config.toml", "gemini/settings.json", "opencode/opencode.json"):
+    for rel in ("gemini/settings.json", "opencode/opencode.json"):
         text = (REPO / rel).read_text()
         check(f"{rel} has no overlay server", "kb" not in text or "linear" in text and '"kb"' not in text, text[:160])
         check(f"{rel} carries no credential", SECRET not in text)

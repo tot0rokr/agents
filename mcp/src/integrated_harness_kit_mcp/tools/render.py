@@ -2,14 +2,17 @@
 
 Three scopes, because the outputs have different audiences:
 
-    artifacts  settings.json, servers.json, MEMORY.md   untracked, base+overlays
-    public     codex/opencode/gemini configs            tracked here, base only
+    artifacts  settings.json, servers.json, MEMORY.md,  untracked, base+overlays
+               codex/config.toml, AGENTS.override.md
+    public     opencode/gemini configs                  tracked here, base only
     local      ~/.claude.json                           this machine, base+overlays
 
 The split exists because the per-tool configs are tracked in a public repo while
 `servers.json` now merges private overlays into it. Rendering those files from
 the merged source would commit an employer's internal servers, so `public`
-renders from `servers.base.json` and `local` carries the merged set.
+renders from `servers.base.json` and `local` carries the merged set. Codex's
+config is untracked like Claude's settings, so it is an artifact and gets the
+merged set too.
 """
 
 from __future__ import annotations

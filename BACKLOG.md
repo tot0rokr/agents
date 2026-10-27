@@ -78,6 +78,11 @@ Outstanding work for the unified agents harness and its companion MCP package. I
 - [x] `render-mcp.sh` used to replace `~/.claude.json`'s `mcpServers` wholesale, dropping a value that existed only on that machine and any server registered there by hand. It now merges per server, with the canonical source winning the keys it defines.
 - [x] `render-mcp.sh` is safe to run by hand again. It reads two sources now: the tracked per-tool configs come from `servers.base.json`, and only `~/.claude.json` gets the overlay-merged set. `doctor.sh` fails if an overlay-only server ever appears in one of the tracked files, so the guarantee is checked rather than assumed.
 - [x] Memory pointer lines have an overlay path. `shared/memory/MEMORY.md` is rendered from the tracked `MEMORY.base.md` plus each overlay's `memory/MEMORY.md` fragment, and lines agents append at runtime are carried over.
+- [x] Codex gets the same split. `codex/config.toml` is rendered from `codex/config.base.toml`, the overlay-merged MCP servers and each overlay's `settings/codex.toml`, keeps what Codex writes for itself, and is untracked with mode 600. `codex/AGENTS.override.md` inlines the instruction files `AGENTS.md` only links to, since Codex does not follow links.
+- [ ] Gemini and OpenCode configs are still tracked and base-only, so neither gets overlay MCP servers. Same split as Codex.
+- [ ] `settings_get` / `settings_set` in the MCP package only know Claude's settings; teach them `codex/config.base.toml` and `settings/codex.toml`.
+- [ ] The MCP server mapping exists three times: jq in `render-mcp.sh`, Python in `render_settings.codex_mcp_servers`, and Python again in the MCP package's local render. Fold them into one.
+- [ ] Claude Code also loads only `@path` imports, not plain links, so `shared/AGENTS.md`'s `See [instructions/…]` lines leave the instruction files out of Claude's context too.
 - [ ] Memories agents write stay untracked until filed by hand. Agents write into `shared/memory/` directly, so a new memory is an untracked base file whose index line lives only in the rendered `MEMORY.md`. Nothing reminds anyone to move it into the base or an overlay; `doctor.sh` could list them.
 
 ## Publishing & CI

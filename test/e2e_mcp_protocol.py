@@ -149,7 +149,7 @@ def main(repo_path: str) -> int:
 
         caps = tool_payload(server.request("tools/call", {"name": "capabilities", "arguments": {"repo_path": repo_path}}))
         check("capabilities over the protocol", caps.get("overlays") is True, json.dumps(caps)[:300])
-        check("version reported as 1.0.0", caps.get("package_version") == "1.0.0", str(caps.get("package_version")))
+        check("version reported as 1.1.0", caps.get("package_version") == "1.1.0", str(caps.get("package_version")))
 
         status = tool_payload(server.request("tools/call", {"name": "status", "arguments": {"repo_path": repo_path}}))
         check("status over the protocol", status.get("ok") is True, json.dumps(status)[:300])

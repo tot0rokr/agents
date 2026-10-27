@@ -1,3 +1,5 @@
-# Machine-local files (settings/claude.local.json, mcp/servers.local.json,
-# vars.local.json) describe only the machine that wrote them. Never commit them.
+# Machine-local files (settings/claude.local.json, settings/codex.local.toml,
+# mcp/servers.local.json, vars.local.json) describe only the machine that wrote
+# them. Never commit them.
 *.local.json
+*.local.toml

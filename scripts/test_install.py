@@ -106,6 +106,28 @@ class TestBackup(InstallTestBase):
         self.assertEqual((backups[0] / "important.txt").read_text(), "data")
 
 
+class TestCodexConfigSeed(InstallTestBase):
+    def test_pre_harness_codex_config_seeds_the_render(self):
+        codex = self.home / ".codex"
+        codex.mkdir()
+        (codex / "config.toml").write_text('[projects."/work"]\ntrust_level = "trusted"\n')
+
+        install(home=self.home, repo_root=self.repo)
+
+        seeded = self.repo / "codex" / "config.toml"
+        self.assertEqual(seeded.read_text(), '[projects."/work"]\ntrust_level = "trusted"\n')
+
+    def test_an_existing_render_is_not_overwritten(self):
+        codex = self.home / ".codex"
+        codex.mkdir()
+        (codex / "config.toml").write_text('model = "old"\n')
+        (self.repo / "codex" / "config.toml").write_text('model = "current"\n')
+
+        install(home=self.home, repo_root=self.repo)
+
+        self.assertEqual((self.repo / "codex" / "config.toml").read_text(), 'model = "current"\n')
+
+
 class TestPhase3Restore(InstallTestBase):
     def test_runtime_data_restored_into_new_home(self):
         claude = self.home / ".claude"

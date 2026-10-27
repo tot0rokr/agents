@@ -36,7 +36,9 @@ agents/
 │
 ├── codex/                     -> ~/.codex
 │   ├── AGENTS.md                -> ../shared/AGENTS.md
-│   ├── config.toml              [mcp_servers] rendered by render-mcp.sh; rest hand-written or written by Codex
+│   ├── AGENTS.override.md       AGENTS.md with instructions/*.md inlined; Codex reads it first (gitignored)
+│   ├── config.base.toml         tracked base for config.toml
+│   ├── config.toml              rendered from base + MCP servers + overlays; Codex writes here too (gitignored)
 │   └── prompts/                 -> ../shared/commands  (Codex reads .md natively)
 │
 ├── opencode/                  -> ~/.config/opencode
@@ -56,9 +58,9 @@ agents/
 │   ├── install.py               home-dir symlinks, rollback-safe; renders settings
 │   ├── install.sh               thin wrapper around install.py
 │   ├── overlay.py               register and apply environment overlays
-│   ├── render_settings.py       settings.base.json + overlays -> settings.json
-│   ├── render-mcp.sh            shared/mcp/servers.json -> 4 tool formats
-│   ├── render-codex-config.sh   wrapper around render-mcp.sh
+│   ├── render_settings.py       bases + overlays -> every render artifact, Codex's included
+│   ├── render-mcp.sh            shared/mcp/servers.json -> Claude, OpenCode, Gemini formats
+│   ├── render-codex-config.sh   wrapper around render_settings.py
 │   ├── render-gemini-commands.sh   shared/commands/*.md -> gemini/commands/*.toml
 │   ├── render-gemini-settings.sh   wrapper around render-mcp.sh
 │   └── doctor.sh                verify links and configs
@@ -86,14 +88,14 @@ point at this repo are skipped.
 
 | Edit this | Effect |
 |---|---|
-| `shared/AGENTS.md` | All 4 tools (via their instruction-file symlinks). |
-| `shared/instructions/*.md` | Referenced from AGENTS.md; all 4 see it. |
+| `shared/AGENTS.md` | All 4 tools (via their instruction-file symlinks; Codex via the rendered `codex/AGENTS.override.md`). |
+| `shared/instructions/*.md` | Linked from AGENTS.md. Codex does not follow links, so `render_settings.py` inlines them into `codex/AGENTS.override.md`. |
 | `shared/memory/<name>.md` | Listed in the index; all 4 see it. |
 | `shared/memory/MEMORY.base.md` | The tracked index. Rendered into `MEMORY.md`, which AGENTS.md references. |
 | `universal/skills/<name>/SKILL.md` | All 4 tools (Codex/OpenCode/Gemini via `~/.agents/skills`, Claude via `~/.claude/skills` symlink). |
 | `shared/subagents/<name>.md` | Claude and OpenCode directly. Codex/Gemini need their own format. |
 | `shared/commands/<name>.md` | Claude, Codex (`~/.codex/prompts/`), OpenCode directly. Run `render-gemini-commands.sh` to push to Gemini. |
-| `shared/mcp/servers.base.json` | Canonical. Run `render-mcp.sh` to write into all 4 tool configs. |
+| `shared/mcp/servers.base.json` | Canonical. Run `render_settings.py` (Codex) and `render-mcp.sh` (the other three) to write it into the tool configs. |
 
 ## Overlays
 
@@ -111,9 +113,9 @@ scripts/overlay.py status                    # drift check
 
 Overlays live at `overlays/<alias>` inside this repo, and `overlays/` is gitignored in full, so a private overlay sits next to the base tree without the base ever tracking it.
 
-An overlay contributes memory, instructions, commands, sub-agents and skills as symlinks, merges `settings/claude.json` and `mcp/servers.json` into their rendered counterparts, and can symlink anything else through a `links` map in its manifest. Multiple overlays coexist; `priority` decides who wins on a shared key.
+An overlay contributes memory, instructions, commands, sub-agents and skills as symlinks, merges `settings/claude.json`, `settings/codex.toml` and `mcp/servers.json` into their rendered counterparts, and can symlink anything else through a `links` map in its manifest. Multiple overlays coexist; `priority` decides who wins on a shared key.
 
-Because Claude Code writes runtime state into `~/.claude/settings.json` — which is this repo's `claude/settings.json` — that file, `shared/mcp/servers.json` and the memory index `shared/memory/MEMORY.md` are render artifacts and are not tracked. Edit `claude/settings.base.json`, `shared/mcp/servers.base.json` or `shared/memory/MEMORY.base.md` for anything that should be public and shared, or an overlay for anything that should not. A memory an agent writes stays untracked until it is filed into one or the other. Full design in [docs/overlay.md](docs/overlay.md).
+Because Claude Code writes runtime state into `~/.claude/settings.json` — which is this repo's `claude/settings.json` — that file, `shared/mcp/servers.json` and the memory index `shared/memory/MEMORY.md` are render artifacts and are not tracked. Codex is in the same position: it writes trusted project paths into `~/.codex/config.toml`, so `codex/config.toml` is rendered too, and gets the overlays' MCP servers along with it. Edit `claude/settings.base.json`, `codex/config.base.toml`, `shared/mcp/servers.base.json` or `shared/memory/MEMORY.base.md` for anything that should be public and shared, or an overlay for anything that should not. A memory an agent writes stays untracked until it is filed into one or the other. Full design in [docs/overlay.md](docs/overlay.md).
 
 ## Adding new content
 
@@ -121,7 +123,7 @@ Most additions are zero-build — drop a file in the canonical location and all 
 
 ### A new MCP server
 
-Edit `shared/mcp/servers.json`, then run `scripts/render-mcp.sh`. The schema accepts both remote HTTP/SSE servers and local stdio servers; the script picks the right per-tool format from the fields you set.
+Edit `shared/mcp/servers.base.json` (or an overlay's `mcp/servers.json` for a private one), then run `scripts/render_settings.py` and `scripts/render-mcp.sh`. The schema accepts both remote HTTP/SSE servers and local stdio servers; the renderers pick the right per-tool format from the fields you set. Codex has no SSE transport, so an SSE server is left out of its config with a warning.
 
 ```json
 {
@@ -142,7 +144,7 @@ Edit `shared/mcp/servers.json`, then run `scripts/render-mcp.sh`. The schema acc
 
 `url` → remote (`transport` defaults to `http`; set `"sse"` for SSE). `command` → stdio.
 
-After rendering, commit all five files together: the canonical source plus the four regenerated tool configs. OAuth-based servers (Linear, GitHub, etc.) prompt for authorization the first time a tool needs them; tokens are cached per-tool, never in this repo.
+After rendering, commit the canonical source together with the two regenerated tool configs that are tracked, `gemini/settings.json` and `opencode/opencode.json`. OAuth-based servers (Linear, GitHub, etc.) prompt for authorization the first time a tool needs them; tokens are cached per-tool, never in this repo.
 
 ### A new skill
 
@@ -185,14 +187,16 @@ Claude, Codex (`~/.codex/prompts/`), and OpenCode all read these `.md` files dir
 
 | Edited | Run |
 |---|---|
-| `shared/mcp/servers.base.json` | `scripts/render_settings.py`, then `scripts/render-mcp.sh` |
+| `shared/mcp/servers.base.json` | `scripts/render_settings.py` (Codex is one of its outputs), then `scripts/render-mcp.sh` |
+| `codex/config.base.toml`, an overlay's `settings/codex.toml` | `scripts/render_settings.py` |
 | `shared/memory/MEMORY.base.md` | `scripts/render_settings.py` |
 | `shared/commands/*.md` | `scripts/render-gemini-commands.sh` (only Gemini needs it) |
-| `shared/AGENTS.md`, `shared/instructions/*.md`, `shared/memory/*.md` | Nothing — symlinks pick up changes live. |
+| `shared/AGENTS.md`, `shared/instructions/*.md` | `scripts/render_settings.py` for Codex, which reads `codex/AGENTS.override.md`; the other tools pick changes up live. |
+| `shared/memory/*.md` | Nothing — symlinks pick up changes live. |
 | `universal/skills/*/SKILL.md` | Nothing — auto-discovered live. |
 | `shared/subagents/*.md` | Nothing — symlinks pick up changes live (Claude / OpenCode). |
 
-Render scripts are idempotent and preserve user-meaningful sections of each tool's config. The Codex renderer also strips a small set of ephemeral runtime sections (e.g. the `[tui.model_availability_nux]` click counter) so the committed `codex/config.toml` stays clean across CLI runs.
+Render scripts are idempotent and preserve user-meaningful sections of each tool's config. `render_settings.py` keeps every key Codex wrote into `codex/config.toml` that no source names — trusted projects, UI counters — and leaves a file untouched when its data already matches, so a running session's file watcher is not woken for nothing.
 
 ## Hooks
 
@@ -200,7 +204,7 @@ Hook schemas don't share well across tools (event names and payload formats
 differ), so hooks live inside each tool's native config:
 
 - Claude: `claude/settings.json` `.hooks`
-- Codex: `codex/config.toml` `[hooks]` or `codex/hooks.json`
+- Codex: `[hooks]` in `codex/config.base.toml` or an overlay's `settings/codex.toml`, or `codex/hooks.json`
 - OpenCode: `opencode/plugins/*.{ts,js}` (event-handler modules)
 - Gemini: `gemini/settings.json` `.hooks`
 
@@ -225,9 +229,11 @@ Common gotchas:
 
 - **`/resume` in Claude Code shows no conversations** — Claude organises transcripts per cwd at `~/.claude/projects/<slug-of-cwd>/*.jsonl`. If you launched Claude from a different directory than where the conversations live, switch cwd and try again. `install.sh` Phase 2 creates a memory symlink under each slug that exists at install time (plus the one for the directory it runs from), so the memory pool is shared even though the transcripts aren't. A project first opened after the install gets its own `memory/` directory, which is not shared and stays on that machine; re-run the installer to link it.
 
-- **A tool config keeps drifting after every CLI run** — some tools mutate their own config: Codex bumps the NUX click counter, OpenCode's `oh-my-openagent` plugin drops timestamped backup files. `render-mcp.sh` strips known ephemeral Codex sections; OpenCode plugin backups are in `.gitignore`. New drift you can't kill? Add the offending section/pattern to the matching ignore list.
+- **A tool config keeps drifting after every CLI run** — some tools mutate their own config: OpenCode's `oh-my-openagent` plugin drops timestamped backup files, which are in `.gitignore`. Codex writes into `codex/config.toml` all the time, but that file is untracked, so it no longer shows up in `git status`. New drift you can't kill? Add the offending section/pattern to the matching ignore list.
 
-- **A render script's output looks wrong** — its source is `shared/mcp/servers.base.json` plus each overlay's `mcp/servers.json` (or `shared/commands/`). Edit the canonical source, never the rendered file. Re-running render is non-destructive: only the generated sections are replaced, user-meaningful sections like `[projects."<path>"]` survive.
+- **A setting changed inside Codex snaps back** — every key in `codex/config.base.toml` (or an overlay's `settings/codex.toml`) is enforced on each render, `model` and `service_tier` included. Change the source instead; `overlay.py status` reports the difference as DRIFT until then.
+
+- **A render script's output looks wrong** — its source is `shared/mcp/servers.base.json` plus each overlay's `mcp/servers.json` (or `shared/commands/`, or `codex/config.base.toml`). Edit the canonical source, never the rendered file. Re-running render is non-destructive: what Codex wrote for itself, like `[projects."<path>"]`, survives.
 
 - **Linear / GitHub / Notion MCP says "not authenticated"** — expected on first use. Each tool runs its own OAuth flow on first request (browser opens, you approve). Tokens cache per-tool, never shared. Re-auth required if you revoke or switch workspaces.
 
@@ -238,9 +244,21 @@ Common gotchas:
 ```bash
 cd ~/agents
 git pull
-scripts/render-mcp.sh             # if shared/mcp/servers.json changed upstream
+scripts/render_settings.py        # render artifacts, Codex's config and instructions included
+scripts/render-mcp.sh             # if shared/mcp/servers.base.json changed upstream
 scripts/render-gemini-commands.sh # if shared/commands/ changed upstream
 scripts/doctor.sh                 # sanity check
 ```
+
+One pull needs care: the one that stopped tracking `codex/config.toml`. On a machine where the file is unmodified, git deletes it, and with it what Codex wrote there (trusted projects, model choice). Copy it aside before pulling and put it back after, then render:
+
+```bash
+cp -p codex/config.toml codex/config.toml.bak.$(date +%Y%m%d-%H%M%S)
+git pull
+cp -p codex/config.toml.bak.<timestamp> codex/config.toml
+scripts/render_settings.py
+```
+
+If the pull already happened, `git show "$(git log -1 --diff-filter=D --format=%H -- codex/config.toml)^:codex/config.toml" > codex/config.toml` restores the last tracked version; `doctor.sh` prints the same command.
 
 `install.sh` does not need to re-run on a routine pull — the home-dir symlinks already point at the repo, so anything you pull is immediately live in all four CLIs.

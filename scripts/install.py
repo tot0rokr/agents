@@ -452,6 +452,14 @@ class Installer:
     # ---- phase 3: restore runtime data ----
 
     def _phase3_restore(self) -> None:
+        # A Codex that ran before the harness has its own config.toml, with the
+        # projects it trusts. codex/config.toml is rendered, not tracked, so the
+        # render starts from that file instead of from the base alone.
+        codex_bak = self.result.backups.get(self.home / ".codex")
+        codex_live = self.repo_root / "codex" / "config.toml"
+        if codex_bak and (codex_bak / "config.toml").is_file() and not codex_live.exists():
+            self._record(CopyFile(codex_bak / "config.toml", codex_live))
+
         claude_bak = self.result.backups.get(self.home / ".claude")
         if not claude_bak or not claude_bak.is_dir():
             self.result.skipped.append("phase 3: no fresh ~/.claude backup")

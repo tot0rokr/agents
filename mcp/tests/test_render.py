@@ -20,9 +20,9 @@ import json, sys
 from pathlib import Path
 repo = Path(sys.argv[1])
 servers = json.loads((repo / "shared/mcp/servers.json").read_text()).get("servers", {})
-(repo / "codex").mkdir(exist_ok=True)
-(repo / "codex" / "config.toml").write_text(
-    "".join(f"[mcp_servers.{name}]\\n" for name in sorted(servers)))
+(repo / "gemini").mkdir(exist_ok=True)
+(repo / "gemini" / "settings.json").write_text(
+    json.dumps({"mcpServers": {name: {} for name in sorted(servers)}}))
 PY
 """
 
@@ -46,8 +46,22 @@ class RenderArtifactsTests(HarnessTestCase):
             "claude/settings.json",
             "shared/mcp/servers.json",
             "shared/memory/MEMORY.md",
+            "codex/config.toml",
         ):
             self.assertTrue((self.repo / rel).is_file(), rel)
+
+    def test_overlay_servers_reach_codex_privately(self):
+        import tomllib
+
+        make_overlay(self.repo, "work", priority=60, servers={"kb": {"command": "/opt/kb"}})
+        register_and_install(self.repo, "work", priority=60)
+        self.render(scope="artifacts", repo_path=str(self.repo))
+
+        codex = self.repo / "codex" / "config.toml"
+        config = tomllib.loads(codex.read_text())
+        self.assertEqual(config["mcp_servers"]["kb"], {"command": "/opt/kb"})
+        self.assertIn("linear", config["mcp_servers"])
+        self.assertEqual(codex.stat().st_mode & 0o777, 0o600)
 
     def test_overlay_content_reaches_the_artifacts(self):
         make_overlay(
@@ -97,15 +111,15 @@ class RenderPublicTests(HarnessTestCase):
         make_overlay(self.repo, "work", priority=60, servers={"internal-kb": {"command": "/opt/kb"}})
         register_and_install(self.repo, "work", priority=60)
 
-    def codex(self) -> str:
-        return (self.repo / "codex" / "config.toml").read_text()
+    def gemini(self) -> str:
+        return (self.repo / "gemini" / "settings.json").read_text()
 
     def test_public_render_excludes_overlay_servers(self):
         result = self.render(scope="public", repo_path=str(self.repo))
         self.assertTrue(result["ok"], result)
         self.assertEqual(result["steps"][0]["overlay_servers_excluded"], ["internal-kb"])
-        self.assertIn("linear", self.codex())
-        self.assertNotIn("internal-kb", self.codex())
+        self.assertIn("linear", self.gemini())
+        self.assertNotIn("internal-kb", self.gemini())
 
     def test_effective_servers_are_restored_afterwards(self):
         before = (self.repo / "shared" / "mcp" / "servers.json").read_text()
@@ -115,7 +129,7 @@ class RenderPublicTests(HarnessTestCase):
         self.assertIn("internal-kb", after)
 
     def test_a_pre_existing_leak_is_reported(self):
-        (self.repo / "codex" / "config.toml").write_text("[mcp_servers.internal-kb]\n")
+        (self.repo / "gemini" / "settings.json").write_text('{"mcpServers": {"internal-kb": {}}}\n')
         # The stub rewrites the file, so simulate a renderer that leaves the leak.
         (self.repo / "scripts" / "render-mcp.sh").write_text("#!/usr/bin/env bash\nexit 0\n")
         (self.repo / "scripts" / "render-mcp.sh").chmod(0o755)

@@ -27,11 +27,13 @@
 #                                                  ~/.claude.json in place
 #                                                  and preserves all other
 #                                                  keys.)
-#   codex/config.toml              [mcp_servers.<name>]
 #   opencode/opencode.json         .mcp
 #   gemini/settings.json           .mcpServers
 #
-# Requires:  jq, python3 (for TOML rendering)
+# Codex is not here: codex/config.toml is a render artifact, and
+# scripts/render_settings.py writes its [mcp_servers] along with the rest.
+#
+# Requires:  jq
 
 set -euo pipefail
 
@@ -40,15 +42,14 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # Two sources, because the outputs have two audiences. servers.json is the
 # rendered, overlay-merged set: it may name an employer's internal servers and
 # carry their credentials, and it is the right thing for this machine's own
-# ~/.claude.json. The per-tool configs under codex/, gemini/ and opencode/ are
-# tracked in a public repo, so they are rendered from the base alone.
+# ~/.claude.json. The per-tool configs under gemini/ and opencode/ are tracked
+# in a public repo, so they are rendered from the base alone.
 SRC="$REPO_ROOT/shared/mcp/servers.json"
 PUBLIC_SRC="$REPO_ROOT/shared/mcp/servers.base.json"
 [[ -f "$PUBLIC_SRC" ]] || PUBLIC_SRC="$SRC"   # a repo from before the split
 
 [[ -f "$SRC" ]] || { echo "missing $SRC" >&2; exit 1; }
 command -v jq >/dev/null || { echo "jq is required" >&2; exit 1; }
-command -v python3 >/dev/null || { echo "python3 is required" >&2; exit 1; }
 
 # Shared jq helper functions: classify a server, then map it per tool.
 JQ_LIB='
@@ -143,86 +144,3 @@ jq --argjson s "$PUBLIC_SERVERS_RAW" "$JQ_LIB"'
   .mcp = ($s | map_servers(to_opencode))
 ' "$OPENCODE_FILE" > "$tmp" && mv "$tmp" "$OPENCODE_FILE"
 echo "wrote $OPENCODE_FILE"
-
-# --- Codex: config.toml [mcp_servers.<name>] ---
-# Codex supports both stdio and HTTP natively. We strip all existing
-# `[mcp_servers]` and `[mcp_servers.*]` sections plus a small set of
-# ephemeral runtime sections that Codex CLI mutates on its own (e.g. the
-# NUX click counter at `[tui.model_availability_nux]`). Everything else
-# — including `[projects."<path>"]` trust settings — is preserved in
-# its original order.
-CODEX_FILE="$REPO_ROOT/codex/config.toml"
-python3 - "$PUBLIC_SRC" "$CODEX_FILE" <<'PY'
-import json, re, sys, pathlib
-
-src, dst = sys.argv[1], sys.argv[2]
-servers = json.loads(pathlib.Path(src).read_text()).get("servers", {})
-text = pathlib.Path(dst).read_text()
-
-# Sections to drop from the output. We replace mcp_servers with our
-# regenerated block; ephemerals are runtime state that pollutes git
-# diffs every Codex run and shouldn't live in version control.
-EPHEMERAL_SECTIONS = {
-    "tui.model_availability_nux",
-}
-
-header_re = re.compile(r'^\s*\[([^\]]+)\]\s*$')
-
-def should_strip(section: str) -> bool:
-    if section == "mcp_servers" or section.startswith("mcp_servers."):
-        return True
-    if section in EPHEMERAL_SECTIONS:
-        return True
-    if any(section.startswith(e + ".") for e in EPHEMERAL_SECTIONS):
-        return True
-    return False
-
-preserved = []
-skipping = False
-for line in text.splitlines():
-    m = header_re.match(line)
-    if m:
-        skipping = should_strip(m.group(1))
-    if not skipping:
-        preserved.append(line)
-
-while preserved and not preserved[-1].strip():
-    preserved.pop()
-
-def toml_value(v):
-    if isinstance(v, bool):
-        return "true" if v else "false"
-    if isinstance(v, (int, float)):
-        return str(v)
-    if isinstance(v, list):
-        return "[" + ", ".join(toml_value(x) for x in v) + "]"
-    if isinstance(v, dict):
-        return "{ " + ", ".join(f"{k} = {toml_value(val)}" for k, val in v.items()) + " }"
-    return json.dumps(str(v))
-
-def to_codex(name, cfg):
-    out = []
-    if cfg.get("url"):
-        out.append(("url", cfg["url"]))
-        if cfg.get("headers"):
-            out.append(("http_headers", cfg["headers"]))
-    else:
-        if cfg.get("command"):
-            out.append(("command", cfg["command"]))
-        if cfg.get("args"):
-            out.append(("args", cfg["args"]))
-        if cfg.get("env"):
-            out.append(("env", cfg["env"]))
-    if cfg.get("enabled") is False:
-        out.append(("enabled", False))
-    return out
-
-parts = ["\n".join(preserved), "\n\n", "[mcp_servers]\n"]
-for name, cfg in servers.items():
-    parts.append(f"\n[mcp_servers.{name}]\n")
-    for key, val in to_codex(name, cfg):
-        parts.append(f"{key} = {toml_value(val)}\n")
-
-pathlib.Path(dst).write_text("".join(parts))
-print(f"wrote {dst}")
-PY

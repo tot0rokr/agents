@@ -1,13 +1,10 @@
 #!/usr/bin/env bash
-# Regenerate codex/config.toml from canonical sources.
+# Regenerate codex/config.toml (and codex/AGENTS.override.md).
 #
-# Currently this only re-renders the [mcp_servers] block. Hooks and agents
-# are written by hand below the `[mcp_servers]` section because Codex's
-# TOML schema for those features doesn't map cleanly from JSON.
-#
-# This script is a thin wrapper that re-uses render-mcp.sh's logic.
+# Both are render artifacts of scripts/render_settings.py, which renders every
+# artifact in one pass; this name is kept for whoever still calls it.
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-exec "$REPO_ROOT/scripts/render-mcp.sh"
+exec python3 "$REPO_ROOT/scripts/render_settings.py" "$@"

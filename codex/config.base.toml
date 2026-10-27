@@ -1,0 +1,21 @@
+# Tracked base for codex/config.toml, which scripts/render_settings.py renders
+# from this file, the MCP servers in shared/mcp/ and each overlay's
+# settings/codex.toml. Every key set here is enforced on each render, so a
+# change made inside Codex to one of them is undone; keys Codex writes that are
+# not here (trusted projects, UI counters) are kept.
+#
+# Never put these here: [projects.*] (machine paths; an overlay's
+# settings/codex.toml), [mcp_servers.*] (shared/mcp/servers.base.json), and
+# [tui.model_availability_nux] (Codex's own state).
+
+approvals_reviewer = "auto_review"
+model = "gpt-6-astra"
+service_tier = "fast"
+model_reasoning_effort = "xhigh"
+
+[features]
+memories = true
+
+[tui]
+theme = "tokyonight"
+screen_reader_detection_done = true

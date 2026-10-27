@@ -1,0 +1,4 @@
+# Merged into codex/config.toml. Trusted projects are machine paths, so they
+# live here rather than in the public base; ${CLAUDE_HOME} works in keys too.
+[projects."${CLAUDE_HOME}/work"]
+trust_level = "trusted"

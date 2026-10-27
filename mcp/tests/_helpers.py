@@ -62,6 +62,7 @@ def write_bases(repo: Path, model: str = "test-model", servers: dict | None = No
         + "\n"
     )
     (repo / "shared" / "memory" / "MEMORY.base.md").write_text("- [base note](base_note.md) — public\n")
+    (repo / "codex" / "config.base.toml").write_text(f'model = "{model}"\n')
 
 
 def make_overlay(

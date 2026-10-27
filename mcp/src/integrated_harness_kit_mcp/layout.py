@@ -25,6 +25,8 @@ ARTIFACTS: dict[str, str] = {
     "claude/settings.json": "claude/settings.base.json",
     "shared/mcp/servers.json": "shared/mcp/servers.base.json",
     "shared/memory/MEMORY.md": "shared/memory/MEMORY.base.md",
+    "codex/config.toml": "codex/config.base.toml",
+    "codex/AGENTS.override.md": "shared/AGENTS.md",
 }
 
 # Tracked sources install.py applies to a file outside the repo, not rendered into it.
@@ -33,7 +35,6 @@ HOME_SOURCES: tuple[str, ...] = ("claude/global-config.base.json",)
 # Rendered per-tool configs that this repo still tracks. They must only ever
 # receive base content — see `render`.
 PUBLIC_RENDERED: tuple[str, ...] = (
-    "codex/config.toml",
     "opencode/opencode.json",
     "gemini/settings.json",
     "gemini/commands/",

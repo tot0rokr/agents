@@ -31,6 +31,8 @@ cd ../.. && scripts/overlay.py add personal && scripts/overlay.py install person
 | `skills/<name>/` | `universal/skills/` | symlink |
 | `settings/claude.json` | `claude/settings.json` | deep merge |
 | `settings/claude.local.json` | `claude/settings.json` | deep merge after the above; this machine only, gitignored |
+| `settings/codex.toml` | `codex/config.toml` | deep merge; `${VAR}` expands in keys too, for `[projects."${CLAUDE_HOME}/x"]` |
+| `settings/codex.local.toml` | `codex/config.toml` | deep merge after the above; this machine only, gitignored |
 | `mcp/servers.json` | `shared/mcp/servers.json` | deep merge |
 | `mcp/servers.local.json` | `shared/mcp/servers.json` | deep merge after the above; this machine only, gitignored |
 | `links` in `overlay.json` | any repo-relative path | symlink |

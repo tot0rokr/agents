@@ -70,7 +70,7 @@ This is the source of truth for setup. It runs three phases:
 2. **Phase 2** — Claude per-project memory unification. Every `~/.claude/projects/<slug>/memory/` that exists at install time, plus the one for the directory the installer runs from, is merged into `~/agents/shared/memory/` and replaced with a symlink so all four agents read and write the same memory pool. A project first opened later gets its own `memory/` directory, which stays local until the installer is run again.
 3. **Phase 3** — runtime data restore. From the fresh `~/.claude.bak.<timestamp>` the installer copies back credentials, history, sessions, file-history, per-project transcripts, and merges `settings.local.json` permissions.
 
-After the phases it renders `claude/settings.json` and sets the keys in `claude/global-config.base.json` in `~/.claude.json`. Those are options Claude Code reads only from `~/.claude.json` (`leftArrowOpensAgents`, for one). Every other key in that file is kept. Re-run the installer to apply a key added to that base later.
+After the phases it renders `claude/settings.json`, `codex/config.toml` and the other render artifacts, and sets the keys in `claude/global-config.base.json` in `~/.claude.json`. Those are options Claude Code reads only from `~/.claude.json` (`leftArrowOpensAgents`, for one). Every other key in that file is kept. Re-run the installer to apply a key added to that base later.
 
 **Every mutation is tracked. If any step fails, the installer rolls back all completed mutations and exits non-zero.** If the script exits non-zero, report stderr verbatim to the user and stop — do not try to recover by hand.
 
@@ -105,7 +105,7 @@ Replace `/home/<user>` with the real `$HOME` — these configs do not expand `~`
 
 To add by hand: `jq --arg repo "$HOME/agents/mcp" '.mcpServers += {"integrated-harness-kit":{"command":"uvx","args":["--from",$repo,"integrated-harness-kit-mcp"]}}' ~/.claude.json > /tmp/.claude.json.new && mv /tmp/.claude.json.new ~/.claude.json && chmod 600 ~/.claude.json`.
 
-**Codex CLI** (`~/.codex/config.toml`): append (don't replace existing tables):
+**Codex CLI** (`~/.codex/config.toml`): append (don't replace existing tables). The harness renders this file, and a table added by hand is kept across renders because no source claims it:
 
 ```toml
 [mcp_servers.integrated-harness-kit]

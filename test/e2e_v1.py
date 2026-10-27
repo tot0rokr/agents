@@ -140,7 +140,7 @@ def main() -> int:
     caps = status_mod.capabilities(repo_path=str(REPO))
     check("overlays supported", caps["overlays"])
     check("render_settings available", caps["render_settings"])
-    check("version is 1.0.0", caps["package_version"] == "1.0.0", caps["package_version"])
+    check("version is 1.1.0", caps["package_version"] == "1.1.0", caps["package_version"])
 
     section("3. add a private overlay")
     build_overlay_origin()
@@ -203,14 +203,27 @@ def main() -> int:
 
     section("7. render scopes")
     public = render_mod.render(scope="public", repo_path=str(REPO))
-    codex = (REPO / "codex" / "config.toml").read_text()
+    gemini = (REPO / "gemini" / "settings.json").read_text()
     check("public render ok", public["ok"], json.dumps(public)[:400])
-    check("internal server kept out of the tracked config", "internal-kb" not in codex)
-    check("base server present in the tracked config", "linear" in codex)
+    check("internal server kept out of the tracked config", "internal-kb" not in gemini)
+    check("base server present in the tracked config", "linear" in gemini)
     check(
         "effective servers restored after the swap",
         "internal-kb" in json.loads((REPO / "shared" / "mcp" / "servers.json").read_text())["servers"],
     )
+
+    # Codex's config is untracked like Claude's settings, so it gets the
+    # overlay's servers — and has to stay private and out of git.
+    artifacts = render_mod.render(scope="artifacts", repo_path=str(REPO))
+    codex_path = REPO / "codex" / "config.toml"
+    check("artifacts render ok", artifacts["ok"], json.dumps(artifacts)[:400])
+    check("Codex gets the internal server", "internal-kb" in codex_path.read_text())
+    check("Codex config is mode 600", codex_path.stat().st_mode & 0o777 == 0o600, oct(codex_path.stat().st_mode))
+    untracked = subprocess.run(
+        ["git", "ls-files", "codex/config.toml"], cwd=str(REPO), capture_output=True, text=True
+    ).stdout.strip()
+    check("Codex config is not tracked", not untracked, untracked)
+    check("Codex instructions rendered", (REPO / "codex" / "AGENTS.override.md").is_file())
 
     claude_json = HOME / ".claude.json"
     claude_json.write_text(

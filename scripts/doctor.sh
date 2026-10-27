@@ -78,15 +78,41 @@ parse_json "$REPO_ROOT/claude/settings.base.json"
 parse_json "$REPO_ROOT/opencode/opencode.json"
 parse_json "$REPO_ROOT/gemini/settings.json"
 parse_json "$REPO_ROOT/shared/mcp/servers.json"
-parse_toml "$REPO_ROOT/codex/config.toml"
+parse_toml "$REPO_ROOT/codex/config.base.toml"
+if [[ -f "$REPO_ROOT/codex/config.toml" ]]; then
+  parse_toml "$REPO_ROOT/codex/config.toml"
+  codex_mode="$(stat -c %a "$REPO_ROOT/codex/config.toml" 2>/dev/null || stat -f %Lp "$REPO_ROOT/codex/config.toml")"
+  if [[ "$codex_mode" != "600" ]]; then
+    echo "WARN  codex/config.toml is mode $codex_mode, not 600 — it can hold MCP credentials; re-run scripts/render_settings.py"
+  fi
+else
+  # Until 2026-10 the file was tracked, so the pull that untracked it deleted it.
+  echo "SKIP  codex/config.toml not rendered yet (scripts/render_settings.py). If a pull just deleted it, recover Codex's own state first:"
+  echo "      git show \"\$(git log -1 --diff-filter=D --format=%H -- codex/config.toml)^:codex/config.toml\" > codex/config.toml"
+fi
+if [[ -f "$REPO_ROOT/codex/AGENTS.override.md" ]]; then
+  agents_size="$(wc -c < "$REPO_ROOT/codex/AGENTS.override.md")"
+  if (( agents_size > 32768 )); then
+    echo "WARN  codex/AGENTS.override.md is $agents_size bytes; Codex may cut instructions past 32768"
+  else
+    echo "OK    codex/AGENTS.override.md ($agents_size bytes)"
+  fi
+fi
 
 echo
 echo "== overlays (see docs/overlay.md) =="
 if python3 "$REPO_ROOT/scripts/render_settings.py" --check >/dev/null 2>&1; then
-  echo "OK    settings.base.json tracks no local-only keys"
+  echo "OK    settings.base.json and codex/config.base.toml track no local-only keys"
 else
-  echo "FAIL  settings.base.json tracks local-only keys — run scripts/render_settings.py --check"
+  echo "FAIL  a tracked base holds local-only keys — run scripts/render_settings.py --check"
   fail=1
+fi
+tracked_artifacts="$(git -C "$REPO_ROOT" ls-files -- claude/settings.json shared/mcp/servers.json shared/memory/MEMORY.md codex/config.toml codex/AGENTS.override.md)"
+if [[ -n "$tracked_artifacts" ]]; then
+  echo "FAIL  render artifacts are tracked by git: $(echo $tracked_artifacts) — git rm --cached them"
+  fail=1
+else
+  echo "OK    render artifacts are untracked"
 fi
 if python3 "$REPO_ROOT/scripts/overlay.py" status >/dev/null 2>&1; then
   echo "OK    overlay links and settings render are in sync"
@@ -101,7 +127,7 @@ import json, sys
 from pathlib import Path
 
 repo = Path(sys.argv[1])
-TRACKED = ("codex/config.toml", "opencode/opencode.json", "gemini/settings.json")
+TRACKED = ("opencode/opencode.json", "gemini/settings.json")
 
 
 def servers(rel):

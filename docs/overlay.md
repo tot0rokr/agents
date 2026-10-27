@@ -18,6 +18,8 @@ subagents/*.md        → shared/subagents/
 skills/<name>/        → universal/skills/
 settings/claude.json  → merged into claude/settings.json
 settings/claude.local.json → merged right after it, on this machine only (*.local.json stays out of the overlay's git)
+settings/codex.toml   → merged into codex/config.toml
+settings/codex.local.toml → merged right after it, on this machine only (*.local.toml stays out of the overlay's git)
 mcp/servers.json      → merged into shared/mcp/servers.json
 mcp/servers.local.json → merged right after it, on this machine only
 vars.json             # ${VAR} values for JSON fragments (never commit to a public overlay)
@@ -58,7 +60,7 @@ Markdown and skill drop-ins are symlinked from the overlay clone into the base t
 
 JSON fragments are merged, because two sources have to coexist in one file that the tool actually reads.
 
-`${VAR}` placeholders are substituted in JSON fragments and in the overlay's `memory/MEMORY.md` index fragment. Values come from three layers, later ones winning: a built-in `CLAUDE_HOME` set to this machine's home directory, the overlay's `vars.json`, then this machine's `vars.local.json`. Leave anything that differs per machine — a home path, a port — out of `vars.json`, or one machine's value ends up on every other. Markdown drop-ins are symlinked verbatim — an overlay that needs private text in a memory file simply keeps that text in its own (private) repo, so there is nothing to substitute.
+`${VAR}` placeholders are substituted in JSON fragments, in TOML fragments (in keys too, so `[projects."${CLAUDE_HOME}/work"]` works) and in the overlay's `memory/MEMORY.md` index fragment. Values come from three layers, later ones winning: a built-in `CLAUDE_HOME` set to this machine's home directory, the overlay's `vars.json`, then this machine's `vars.local.json`. Leave anything that differs per machine — a home path, a port — out of `vars.json`, or one machine's value ends up on every other. Markdown drop-ins are symlinked verbatim — an overlay that needs private text in a memory file simply keeps that text in its own (private) repo, so there is nothing to substitute.
 
 ## Rendered artifacts, not tracked ones
 
@@ -85,6 +87,22 @@ Editing `claude/settings.json` by hand still works — the edit survives as unma
 The memory index gets the same split. `shared/memory/MEMORY.base.md` is tracked; `shared/memory/MEMORY.md` is rendered from it, then each enabled overlay's `memory/MEMORY.md` by ascending priority, then every line the live file has that no source claims. Agents append index lines to the live file at runtime, and that last pass is what keeps them.
 
 A memory an agent writes therefore lands in `shared/memory/` as an untracked file, with its index line carried only in the rendered `MEMORY.md`. It stays on this machine until someone files it: into the base (the file plus a line in `MEMORY.base.md`) when it is safe to publish, or into an overlay (the file plus a line in that overlay's `memory/MEMORY.md`) when it is not. A memory that only matters inside one project can go to that project's own `~/.claude/projects/<slug>/memory/` instead, provided that slug is not linked to `shared/memory`; only Claude Code sessions started in that directory see it, and no repo tracks it.
+
+### Codex
+
+Codex has the same problem in TOML: it writes into `~/.codex/config.toml` whenever you trust a directory, pick a model or dismiss a notice, and a trusted directory is an absolute path on one machine. So that file is split too:
+
+- `codex/config.base.toml` — tracked, public-safe, hand-edited
+- `codex/config.toml` — build artifact, gitignored, mode 600
+- `scripts/render_settings.py` — produces it in the same pass as the others
+
+Render order is the base, then the MCP servers from the rendered `servers.json`, then each enabled overlay's `settings/codex.toml` and `settings/codex.local.toml` by ascending priority, then every key the live file has that no source claims. That last pass keeps what Codex wrote for itself: trusted projects, UI counters, keys a newer Codex adds. Keys a past render managed and no source holds any more are dropped, tracked under `codexManaged` in `overlays/rendered.local.json`.
+
+Every key in the base is enforced, `model` and `service_tier` included: switch either inside Codex and the next render puts the base value back, with `overlay.py status` reporting DRIFT until then. `CODEX_LOCAL_ONLY` lists what may never be in the base — `projects` (machine paths; trusted projects belong in an overlay's `settings/codex.toml`), `mcp_servers` (they come from `shared/mcp/`) and `tui.model_availability_nux` — and `render_settings.py --check` fails on any of them.
+
+Because the file now carries overlay MCP servers, credentials included, it is written with mode 600, and the renderer refuses to write it while git still tracks it. The comparison that decides whether to write is on parsed data, not text: Codex rewrites the file in its own formatting, and that is not drift. Comments typed into the live file are lost on the next render that changes something; put them in the base.
+
+Codex also does not follow links, so the instruction files `shared/AGENTS.md` links to never reached it. The same pass renders `codex/AGENTS.override.md`, which Codex reads in place of `AGENTS.md`: every `See [instructions/<x>.md](...)` line is replaced by that file's body, one heading level down, and the remaining relative links become absolute paths. An overlay's `instructions/personal.md` is inlined like any other; a link to a file that is absent is dropped. `doctor.sh` warns past 32768 bytes, where Codex may cut instructions off.
 
 ## Commands
 
@@ -185,6 +203,7 @@ Both live under `overlays/`, which is gitignored in full:
 
 - `registry.local.json` — alias, git URL, ref, priority, enabled. Holds internal URLs, so it stays local.
 - `applied.local.json` — every link and merge an install produced. `remove` and `status` read it, so it is the record that makes removal exact rather than best-effort.
+- `rendered.local.json` — the key paths (`managed`, `codexManaged`) and index lines (`memoryLines`) the last render wrote, so a key dropped from every source is dropped from the artifact instead of living on as runtime state.
 
 ## Setting one up
 
@@ -215,7 +234,7 @@ For a work environment, host it on the employer's git server. Internal details n
 
 Nothing writes `servers.json` at runtime, so it needs no unmanaged-key preservation: removing an overlay removes its servers cleanly.
 
-`render-mcp.sh` reads two sources. Only `~/.claude.json`, which lives outside the repo, gets the rendered set with overlay servers; the tracked per-tool configs (`codex/config.toml`, `opencode/opencode.json`, `gemini/settings.json`) are rendered from `servers.base.json` alone, and `doctor.sh` fails if an overlay-only server shows up in one of them. Into `~/.claude.json` it merges per server, so a value that exists only on this machine — a password left out of every repo — and a server registered there by hand both survive the render.
+`render-mcp.sh` reads two sources. Only `~/.claude.json`, which lives outside the repo, gets the rendered set with overlay servers; the tracked per-tool configs (`opencode/opencode.json`, `gemini/settings.json`) are rendered from `servers.base.json` alone, and `doctor.sh` fails if an overlay-only server shows up in one of them. Codex is not in that list: `codex/config.toml` is an untracked artifact, so `render_settings.py` writes the overlay-merged set into it, leaving out any server Codex cannot run (SSE, or one with neither `url` nor `command`), because one bad server table makes Codex reject the whole file. Into `~/.claude.json` it merges per server, so a value that exists only on this machine — a password left out of every repo — and a server registered there by hand both survive the render.
 
 Tokens and passwords do not belong in an overlay either. Reference them from the environment in the server definition and keep the values in your secret store.
 
@@ -233,10 +252,12 @@ That appends to whatever `hooks.Stop` holds so far and leaves the key named `Sto
 
 A key some source claims is restored from that source on the next render. Change `model` by hand in the rendered `settings.json` and the next render puts the base's value back — that is how a tracked setting stays tracked. Change it in `settings.base.json` or in an overlay instead. Keys no source claims, which is most of what Claude Code writes at runtime, are carried across untouched.
 
-Editing a rendered artifact is always temporary. `claude/settings.json`, `shared/mcp/servers.json` and `shared/memory/MEMORY.md` are outputs; a server added straight into `servers.json` disappears on the next render. Edit the `.base.` file or the overlay fragment.
+Editing a rendered artifact is always temporary. `claude/settings.json`, `shared/mcp/servers.json`, `shared/memory/MEMORY.md`, `codex/config.toml` and `codex/AGENTS.override.md` are outputs; a server added straight into `servers.json` disappears on the next render. Edit the `.base.` file or the overlay fragment.
 
 One rough edge worth knowing: if you edit a *base* line of `shared/memory/MEMORY.md` in place, the render keeps your edited line — it looks like a line no source claims — and restores the original alongside it, so the index ends up with both. Edit `MEMORY.base.md` or the overlay's fragment instead.
 
 ## Known gaps
+
+Gemini and OpenCode configs are still tracked and rendered from the base alone, so they get no overlay MCP servers. They would need the same split Codex got.
 
 `.git/info/exclude` is shared by every worktree of the repo, so applying an overlay inside a worktree also hides those paths in the main checkout. Harmless when the names do not collide, but worth knowing when testing an overlay from a worktree.

@@ -13,6 +13,12 @@ overlays/
 claude/settings.json
 shared/mcp/servers.json
 shared/memory/MEMORY.md
+# Codex writes trusted project paths into its config, and the render puts
+# overlay MCP servers there, credentials included.
+codex/config.toml
+codex/config.toml.bak.*
+codex/AGENTS.override.md
+*.render-tmp
 
 # PyPI credentials — must NEVER end up in this repo. Belt-and-suspenders
 # alongside the canonical ~/.pypirc location.

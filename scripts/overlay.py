@@ -18,7 +18,7 @@ from fnmatch import fnmatch
 from pathlib import Path
 
 from install import Mkdir, Symlink
-from render_settings import dumps, render_all, substitute
+from render_settings import artifact_current, dumps, render_all, substitute
 
 OVERLAYS_REL = "overlays"
 REGISTRY_REL = "overlays/registry.local.json"
@@ -26,7 +26,12 @@ APPLIED_REL = "overlays/applied.local.json"
 TEMPLATE_REL = "templates/overlay-example"
 MANIFEST_NAME = "overlay.json"
 # Machine-only files (render fragments and variables); they must never be committed.
-LOCAL_FRAGMENT_RELS = ("settings/claude.local.json", "mcp/servers.local.json", "vars.local.json")
+LOCAL_FRAGMENT_RELS = (
+    "settings/claude.local.json",
+    "settings/codex.local.toml",
+    "mcp/servers.local.json",
+    "vars.local.json",
+)
 VARS_NAME = "vars.json"
 VARS_LOCAL_NAME = "vars.local.json"
 
@@ -484,18 +489,14 @@ def cmd_status(repo_root: Path, args, log) -> int:
             )
             if ignored.returncode != 0:
                 log(
-                    f"LOCAL {overlay.alias}/{rel} is not gitignored — add '*.local.json' "
+                    f"LOCAL {overlay.alias}/{rel} is not gitignored — add '*.local.json' and '*.local.toml' "
                     "to the overlay's .gitignore so it stays on this machine"
                 )
                 problems += 1
 
     if (repo_root / "claude" / "settings.base.json").is_file():
         for rel, merged in render_all(repo_root, write=False).items():
-            if not merged:
-                continue
-            artifact = repo_root / rel
-            expected = merged if isinstance(merged, str) else dumps(merged)
-            if not artifact.is_file() or artifact.read_text() != expected:
+            if merged and not artifact_current(repo_root, rel, merged):
                 log(f"DRIFT {rel} differs from a fresh render — run 'overlay.py install'")
                 problems += 1
 
