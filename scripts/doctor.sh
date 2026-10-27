@@ -103,12 +103,21 @@ if [[ -f "$REPO_ROOT/codex/config.toml" ]]; then
 else
   echo "SKIP  codex/config.toml not rendered yet (scripts/render_settings.py)"
   # Until 2026-10 the file was tracked, so the pull that untracked it deleted it
-  # where Codex had not modified it. The first render reads that copy back from
-  # git; the command is for a checkout where git no longer has it to hand.
-  untracked_in="$(git -C "$REPO_ROOT" log -1 --diff-filter=D --format=%h -- codex/config.toml 2>/dev/null)"
-  if [[ -n "$untracked_in" ]]; then
-    echo "      If a pull deleted it: the first render restores the copy this checkout had. By hand, the last tracked one:"
-    printf '      git -C "%s" show %s^:codex/config.toml > "%s/codex/config.toml"\n' "$REPO_ROOT" "$untracked_in" "$REPO_ROOT"
+  # where Codex had not modified it. Ask the renderer which copy it would read
+  # back: a clone made after that commit never had one, and must not be handed
+  # somebody else's old config.
+  restore_from="$(python3 - "$REPO_ROOT" <<'PY' 2>/dev/null
+import sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1] + "/scripts")
+import render_settings
+copy = render_settings.last_checked_out_copy(Path(sys.argv[1]), "codex/config.toml")
+print(copy[0][:12] if copy else "")
+PY
+)"
+  if [[ -n "$restore_from" ]]; then
+    echo "      A pull deleted the copy this checkout had; the first render restores it. By hand:"
+    printf '      git -C "%s" show %s:codex/config.toml > "%s/codex/config.toml"\n' "$REPO_ROOT" "$restore_from" "$REPO_ROOT"
   fi
 fi
 if [[ -f "$REPO_ROOT/codex/AGENTS.override.md" ]]; then

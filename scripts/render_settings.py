@@ -53,6 +53,8 @@ CODEX_STATE_KEY = "codexManaged"
 # servers.json and codex/config.toml carry overlay MCP servers, and with them
 # their credentials. Either one left readable exposes them, so both are private.
 PRIVATE_MODE = 0o600
+# overlays/ holds the overlay clones and their credentials; owner only.
+OVERLAYS_MODE = 0o700
 # How often a render merges again because Codex wrote the file meanwhile.
 CODEX_RENDER_ATTEMPTS = 5
 
@@ -281,9 +283,22 @@ def _load_state(repo_root: Path, key: str = "managed") -> set[KeyPath]:
     return {tuple(path) for path in load_json(state).get(key, [])}
 
 
-def _save_state(repo_root: Path, managed: set[KeyPath], key: str = "managed") -> None:
+def _state_path(repo_root: Path) -> Path:
+    """overlays/rendered.local.json, creating overlays/ for its owner only.
+
+    On a machine with no overlays yet the render is what creates the
+    directory, and the clones that later land in it hold credentials, so it
+    starts the way overlay.py keeps it.
+    """
     state = repo_root / STATE_REL
-    state.parent.mkdir(parents=True, exist_ok=True)
+    if not state.parent.is_dir():
+        state.parent.mkdir(parents=True, exist_ok=True)
+        os.chmod(state.parent, OVERLAYS_MODE)
+    return state
+
+
+def _save_state(repo_root: Path, managed: set[KeyPath], key: str = "managed") -> None:
+    state = _state_path(repo_root)
     payload = load_json(state) if state.is_file() else {}
     payload[key] = sorted(list(path) for path in managed)
     state.write_text(dumps(payload))
@@ -553,8 +568,7 @@ def _load_memory_state(repo_root: Path) -> set[str]:
 
 
 def _save_memory_state(repo_root: Path, managed: set[str]) -> None:
-    state = repo_root / STATE_REL
-    state.parent.mkdir(parents=True, exist_ok=True)
+    state = _state_path(repo_root)
     payload = load_json(state) if state.is_file() else {}
     payload["memoryLines"] = sorted(managed)
     state.write_text(dumps(payload))

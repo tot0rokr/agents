@@ -85,6 +85,9 @@ Outstanding work for the unified agents harness and its companion MCP package. I
 - [ ] `settings_get` / `settings_set` in the MCP package only know Claude's settings; teach them `codex/config.base.toml` and `settings/codex.toml`.
 - [ ] The MCP server mapping exists three times: jq in `render-mcp.sh`, Python in `render_settings.codex_mcp_servers`, and Python again in the MCP package's local render. Fold them into one.
 - [ ] Claude Code also loads only `@path` imports, not plain links, so `shared/AGENTS.md`'s `See [instructions/…]` lines leave the instruction files out of Claude's context too.
+- [ ] A Codex write can still slip between the render's last check and its rename of `codex/config.toml` (a window of microseconds; Codex takes no lock), and the reverse holds too: a Codex rename that lands after a render dropped a key brings the key back, and later renders then keep it as Codex's own. Keeping dropped paths in the state until a render sees them gone would close the second.
+- [ ] `claude/settings.json` and `MEMORY.md` have the same read-merge-replace window as Codex's config had; reuse `_read_live` / `_replace_unless_changed` for them.
+- [ ] `install.py` compares `~/.claude.json` keys against `global-config.base.json` with `!=`, so `0` passes for `false`; use `same_data`.
 - [ ] Memories agents write stay untracked until filed by hand. Agents write into `shared/memory/` directly, so a new memory is an untracked base file whose index line lives only in the rendered `MEMORY.md`. Nothing reminds anyone to move it into the base or an overlay; `doctor.sh` could list them.
 
 ## Publishing & CI

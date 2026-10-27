@@ -18,11 +18,9 @@ from fnmatch import fnmatch
 from pathlib import Path
 
 from install import Mkdir, Symlink
-from render_settings import artifact_current, dumps, render_all, substitute
+from render_settings import OVERLAYS_MODE, artifact_current, dumps, render_all, substitute
 
 OVERLAYS_REL = "overlays"
-# Owner only: the clones hold credentials (see private_overlays_dir).
-OVERLAYS_MODE = 0o700
 REGISTRY_REL = "overlays/registry.local.json"
 APPLIED_REL = "overlays/applied.local.json"
 TEMPLATE_REL = "templates/overlay-example"

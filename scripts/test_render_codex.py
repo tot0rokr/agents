@@ -307,6 +307,17 @@ class RenderCodexTests(FixtureRepo):
         self.assertEqual(self.mode(), 0o600)
         self.assertEqual(self.live()["mcp_servers"]["linear"]["url"], "https://mcp.linear.app/mcp")
 
+    def test_a_render_that_creates_overlays_makes_it_private(self):
+        # A fresh install with no overlays: the render's state file is what
+        # creates overlays/, and the clones later put there hold credentials.
+        (self.repo / "overlays").rmdir()
+        old = os.umask(0o002)
+        try:
+            rs.render_codex(self.repo)
+        finally:
+            os.umask(old)
+        self.assertEqual((self.repo / "overlays").stat().st_mode & 0o777, 0o700)
+
     def test_a_key_removed_from_the_base_is_dropped_and_runtime_keys_stay(self):
         self.write(rs.CODEX_LIVE_REL, LIVE)
         rs.render_codex(self.repo)
