@@ -651,6 +651,8 @@ def _run_step(repo_root: Path, overlay: Overlay, step: dict, args, log) -> str:
 
 def _remote_host(target: Path) -> str | None:
     probe = target if target.is_dir() else target.parent
+    if not probe.is_dir():
+        return None  # a project since deleted, or one on another machine
     try:
         root = _git(["rev-parse", "--show-toplevel"], cwd=probe)
         url = _git(["remote", "get-url", "origin"], cwd=Path(root))
@@ -671,19 +673,35 @@ def _claims(overlay: Overlay, target: Path, host: str | None) -> bool:
     return False
 
 
+def route(
+    repo_root: Path, target: Path, host: str | None = None, default: bool = True
+) -> Overlay | None:
+    """The overlay that owns `target`: one whose claims match, else the default one.
+
+    Higher priority wins among several. Other tools route their records with
+    this too (the worklog journal picks its repo here), so the rule lives in
+    one place. With default=False an unclaimed target gives None, for a caller
+    whose own fallback differs from the claims default.
+    """
+    if host is None:
+        host = _remote_host(target)
+    candidates = enabled_overlays(repo_root)
+    matched = [o for o in candidates if _claims(o, target, host)]
+    if not matched:
+        if not default:
+            return None
+        matched = [o for o in candidates if (o.manifest().get("claims") or {}).get("default")]
+    winner = max(matched, key=lambda o: (o.priority, o.alias), default=None)
+    if winner is None:
+        raise OverlayError(f"no overlay claims {target}, and none is marked default")
+    return winner
+
+
 def cmd_route(repo_root: Path, args, log) -> int:
     """Which overlay owns a piece of work — so records land in the right repo."""
     target = Path(args.path).expanduser().resolve() if args.path else Path.cwd()
     host = _remote_host(target)
-
-    candidates = enabled_overlays(repo_root)
-    matched = [o for o in candidates if _claims(o, target, host)]
-    if not matched:
-        matched = [o for o in candidates if (o.manifest().get("claims") or {}).get("default")]
-    winner = max(matched, key=lambda o: (o.priority, o.alias), default=None)
-
-    if winner is None:
-        raise OverlayError(f"no overlay claims {target}, and none is marked default")
+    winner = route(repo_root, target, host)
     if args.explain:
         log(f"{target} (remote host: {host or 'none'}) -> {winner.alias}")
     elif args.dir:
