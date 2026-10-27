@@ -1,4 +1,10 @@
 # Merged into codex/config.toml. Trusted projects are machine paths, so they
 # live here rather than in the public base; ${CLAUDE_HOME} works in keys too.
-[projects."${CLAUDE_HOME}/work"]
-trust_level = "trusted"
+#
+# Shipped commented out. In a trusted directory Codex loads that directory's
+# own .codex/config.toml, MCP servers included, and runs with a writable
+# sandbox instead of a read-only one. Uncomment and point it at a directory
+# you mean to trust:
+#
+# [projects."${CLAUDE_HOME}/work"]
+# trust_level = "trusted"

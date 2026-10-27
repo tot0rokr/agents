@@ -68,6 +68,12 @@ CREDENTIAL_MARKERS: tuple[str, ...] = (
 
 BUILD_MARKERS: tuple[str, ...] = ("mcp/dist/", "mcp/build/", ".egg-info")
 
+# Machine-only files inside an overlay (settings/claude.local.json,
+# settings/codex.local.toml, mcp/servers.local.json, vars.local.json). They
+# describe one machine, may hold its credentials, and never enter the
+# overlay's git. Same patterns as templates/overlay-example/.gitignore.
+OVERLAY_LOCAL_PATTERNS: tuple[str, ...] = ("*.local.json", "*.local.toml")
+
 # Files the memory index is built from; never a drop-in.
 MEMORY_INDEX = "shared/memory/MEMORY.md"
 MEMORY_INDEX_FRAGMENT = "memory/MEMORY.md"

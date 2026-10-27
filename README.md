@@ -59,7 +59,7 @@ agents/
 │   ├── install.sh               thin wrapper around install.py
 │   ├── overlay.py               register and apply environment overlays
 │   ├── render_settings.py       bases + overlays -> every render artifact, Codex's included
-│   ├── render-mcp.sh            shared/mcp/servers.json -> Claude, OpenCode, Gemini formats
+│   ├── render-mcp.sh            servers.json -> ~/.claude.json; servers.base.json -> OpenCode, Gemini
 │   ├── render-codex-config.sh   wrapper around render_settings.py
 │   ├── render-gemini-commands.sh   shared/commands/*.md -> gemini/commands/*.toml
 │   ├── render-gemini-settings.sh   wrapper around render-mcp.sh
@@ -89,13 +89,13 @@ point at this repo are skipped.
 | Edit this | Effect |
 |---|---|
 | `shared/AGENTS.md` | All 4 tools (via their instruction-file symlinks; Codex via the rendered `codex/AGENTS.override.md`). |
-| `shared/instructions/*.md` | Linked from AGENTS.md. Codex does not follow links, so `render_settings.py` inlines them into `codex/AGENTS.override.md`. |
+| `shared/instructions/*.md` | Linked from AGENTS.md. Only Codex gets them as instructions: `render_settings.py` inlines them into `codex/AGENTS.override.md`. Claude Code loads `@path` imports, not plain links, so it sees the link line and reads the file only when the agent opens it; see BACKLOG. |
 | `shared/memory/<name>.md` | Listed in the index; all 4 see it. |
 | `shared/memory/MEMORY.base.md` | The tracked index. Rendered into `MEMORY.md`, which AGENTS.md references. |
 | `universal/skills/<name>/SKILL.md` | All 4 tools (Codex/OpenCode/Gemini via `~/.agents/skills`, Claude via `~/.claude/skills` symlink). |
 | `shared/subagents/<name>.md` | Claude and OpenCode directly. Codex/Gemini need their own format. |
 | `shared/commands/<name>.md` | Claude, Codex (`~/.codex/prompts/`), OpenCode directly. Run `render-gemini-commands.sh` to push to Gemini. |
-| `shared/mcp/servers.base.json` | Canonical. Run `render_settings.py` (Codex) and `render-mcp.sh` (the other three) to write it into the tool configs. |
+| `shared/mcp/servers.base.json` | Canonical. Run `render_settings.py` (it renders `servers.json` and Codex's config), then `render-mcp.sh` (Claude's `~/.claude.json` from `servers.json`, OpenCode and Gemini from the base). |
 
 ## Overlays
 
@@ -191,7 +191,7 @@ Claude, Codex (`~/.codex/prompts/`), and OpenCode all read these `.md` files dir
 | `codex/config.base.toml`, an overlay's `settings/codex.toml` | `scripts/render_settings.py` |
 | `shared/memory/MEMORY.base.md` | `scripts/render_settings.py` |
 | `shared/commands/*.md` | `scripts/render-gemini-commands.sh` (only Gemini needs it) |
-| `shared/AGENTS.md`, `shared/instructions/*.md` | `scripts/render_settings.py` for Codex, which reads `codex/AGENTS.override.md`; the other tools pick changes up live. |
+| `shared/AGENTS.md`, `shared/instructions/*.md` | `scripts/render_settings.py` for Codex, which reads `codex/AGENTS.override.md`; the other tools read `AGENTS.md` live through their symlinks, and an instruction file only when the agent opens it. |
 | `shared/memory/*.md` | Nothing — symlinks pick up changes live. |
 | `universal/skills/*/SKILL.md` | Nothing — auto-discovered live. |
 | `shared/subagents/*.md` | Nothing — symlinks pick up changes live (Claude / OpenCode). |
@@ -231,7 +231,7 @@ Common gotchas:
 
 - **A tool config keeps drifting after every CLI run** — some tools mutate their own config: OpenCode's `oh-my-openagent` plugin drops timestamped backup files, which are in `.gitignore`. Codex writes into `codex/config.toml` all the time, but that file is untracked, so it no longer shows up in `git status`. New drift you can't kill? Add the offending section/pattern to the matching ignore list.
 
-- **A setting changed inside Codex snaps back** — every key in `codex/config.base.toml` (or an overlay's `settings/codex.toml`) is enforced on each render, `model` and `service_tier` included. Change the source instead; `overlay.py status` reports the difference as DRIFT until then.
+- **A setting changed inside Codex snaps back** — every key in `codex/config.base.toml` (or an overlay's `settings/codex.toml`) is enforced on each render, `model` and `service_tier` included, and so is the transport of an MCP server the sources define, so re-adding one with `codex mcp add` and the other transport is undone. Change the source instead; `overlay.py status` reports the difference as DRIFT until then.
 
 - **A render script's output looks wrong** — its source is `shared/mcp/servers.base.json` plus each overlay's `mcp/servers.json` (or `shared/commands/`, or `codex/config.base.toml`). Edit the canonical source, never the rendered file. Re-running render is non-destructive: what Codex wrote for itself, like `[projects."<path>"]`, survives.
 
@@ -250,15 +250,23 @@ scripts/render-gemini-commands.sh # if shared/commands/ changed upstream
 scripts/doctor.sh                 # sanity check
 ```
 
-One pull needs care: the one that stopped tracking `codex/config.toml`. On a machine where the file is unmodified, git deletes it, and with it what Codex wrote there (trusted projects, model choice). Copy it aside before pulling and put it back after, then render:
+One pull needs care: the one that stopped tracking `codex/config.toml`. Where Codex has written to the file since it was last committed — the usual case — git refuses that pull ("Your local changes to the following files would be overwritten by merge"); where it has not, git deletes the file. Run this in place of the plain `git pull`, while no Codex session is running. It keeps what Codex wrote there (trusted projects, servers added with `codex mcp add`, feature flags) whether the pull fast-forwards, merges or rebases:
 
 ```bash
-cp -p codex/config.toml codex/config.toml.bak.$(date +%Y%m%d-%H%M%S)
+cd ~/agents
+cp -p codex/config.toml codex/config.toml.bak.migrate && git checkout HEAD -- codex/config.toml
 git pull
-cp -p codex/config.toml.bak.<timestamp> codex/config.toml
+cp -p codex/config.toml.bak.migrate codex/config.toml
 scripts/render_settings.py
 ```
 
-If the pull already happened, `git show "$(git log -1 --diff-filter=D --format=%H -- codex/config.toml)^:codex/config.toml" > codex/config.toml` restores the last tracked version; `doctor.sh` prints the same command.
+The second line sets Codex's copy aside and resets the tracked one, so the pull goes through; the fourth puts the copy back even when the pull fails, so the block can be run again once the pull is sorted out.
+
+- **Pulled already, and git deleted the file:** the first render after that pull (`scripts/render_settings.py` or `install.sh`) restores the copy the checkout had, from the reflog or `ORIG_HEAD`. `doctor.sh` says so, with a `git show` command for a checkout where git no longer has it.
+- **Through the MCP `update` tool:** it runs `git pull --ff-only`, so where Codex has changed the file it stops at that pull, as a plain `git pull` does, and loses nothing; run the block above then. Where the file is unmodified the pull deletes it and the render restores it, as described above.
+- **Stashed, as git suggested:** `git stash pop` stops on a conflict over this file and leaves Codex's copy in place. `git rm --cached codex/config.toml && git stash drop` resolves it.
+- **Codex's changes committed here and not pushed:** the pull itself stops on that conflict, and the block still puts Codex's copy back. `git rm --cached codex/config.toml`, finish with `git commit` (merge) or `git rebase --continue` (rebase), then render. Before the next push, `git log --stat @{u}..` shows whether a commit of yours still carries `codex/config.toml`; it can hold tokens (`codex mcp add --env`), so do not push one that does.
+- **Once Codex starts fine, delete `codex/config.toml.bak.migrate`.** git ignores it, but it is a copy of a file that can hold tokens.
+- **Afterwards, in `~/agents` itself, do not check out, reset to or rebase onto a commit from before that pull.** git treats the now-ignored file as disposable: it overwrites it with the old tracked copy, and deletes it on the way back. Look at old commits in a separate worktree (`git worktree add ../agents-old <commit>`), or use `git checkout --no-overwrite-ignore`, which refuses instead.
 
 `install.sh` does not need to re-run on a routine pull — the home-dir symlinks already point at the repo, so anything you pull is immediately live in all four CLIs.

@@ -7,8 +7,9 @@ structured front for that so an agent can do the same from a chat.
 
 from __future__ import annotations
 
+import fnmatch
 import subprocess
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from .. import layout
 from ._common import git, identity_error, need_repo
@@ -130,7 +131,8 @@ def overlay_commit(
 
     `audit_drift` reports overlays as dirty; this is how that gets resolved
     without leaving the chat. Paths are relative to the overlay root and may
-    not escape it.
+    not escape it. Machine-only *.local.json / *.local.toml files are refused
+    even when the overlay's .gitignore lets them through.
     """
     repo_root, fail = need_repo(repo_path)
     if fail:
@@ -154,6 +156,12 @@ def overlay_commit(
     if not staged["ok"]:
         return {"ok": False, "step": "add", **staged}
 
+    local = _staged_local_files(root)
+    if local is None:
+        return {"ok": False, "step": "diff", "error": "cannot list what is staged in the overlay"}
+    if local:
+        return _refuse_local(root, alias, local)
+
     status = git(["diff", "--cached", "--name-only"], cwd=root)
     if not status["stdout"].strip():
         return {"ok": False, "error": "nothing staged in the overlay"}
@@ -170,6 +178,59 @@ def overlay_commit(
     identity = identity_error(committed, root)
     if identity:
         payload["error"] = identity
+    return payload
+
+
+def _staged_local_files(root: Path) -> list[str] | None:
+    """Machine-only files the index would add to, or change in, the overlay's git.
+
+    The overlay's .gitignore is what normally keeps them out, but one written
+    before a pattern existed (*.local.toml came after *.local.json) or by hand
+    lets `git add -A` sweep them in, and a file committed before its pattern
+    was added is tracked, so ignoring no longer applies. Staged deletions
+    pass: untracking one is the cure. None when git cannot say.
+
+    The patterns are matched here, on each file's name as .gitignore does,
+    not handed to git as a pathspec: GIT_GLOB_PATHSPECS or
+    GIT_LITERAL_PATHSPECS in the server's environment would change what such a
+    pathspec matches and let the file through. Not through `git()` either,
+    whose output is cut to its last 4 KiB: a long list would lose its head.
+    """
+    try:
+        listed = subprocess.run(
+            ["git", "diff", "--cached", "--name-only", "--no-renames", "--diff-filter=d", "-z"],
+            cwd=str(root), capture_output=True, text=True, timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if listed.returncode != 0:
+        return None
+    return [
+        path for path in listed.stdout.split("\0")
+        if path and any(fnmatch.fnmatchcase(PurePosixPath(path).name, pat) for pat in layout.OVERLAY_LOCAL_PATTERNS)
+    ]
+
+
+def _refuse_local(root: Path, alias: str, local: list[str]) -> dict:
+    """Take machine-only files back out of the index and say how to fix it.
+
+    Unstaged rather than left in place, or the next plain `git commit` in
+    the overlay would still carry them.
+    """
+    unstaged = git(["reset", "-q", "--", *local], cwd=root)
+    patterns = " and ".join(f"'{pattern}'" for pattern in layout.OVERLAY_LOCAL_PATTERNS)
+    payload = {
+        "ok": False,
+        "alias": alias,
+        "refused": local,
+        "error": (
+            f"refusing to commit machine-only {', '.join(local)}: add {patterns} to "
+            f"overlays/{alias}/.gitignore (and 'git rm --cached' any already tracked), "
+            "then commit again"
+        ),
+    }
+    if not unstaged["ok"]:
+        payload["unstage"] = unstaged
     return payload
 
 

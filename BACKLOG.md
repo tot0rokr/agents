@@ -7,8 +7,9 @@ Outstanding work for the unified agents harness and its companion MCP package. I
 - [x] `universal/skills/` — 4 registered (`bash-command-style`,
       `critical-file-safety`, `git-commit-workflow`, `fork-session`). Discoverable via
       `~/.claude/skills` and `~/.agents/skills`.
-- [x] `shared/mcp/servers.json` — Linear MCP (remote HTTP, OAuth 2.1).
-      `render-mcp.sh` handles remote vs stdio per tool.
+- [x] `shared/mcp/servers.base.json` — Linear MCP (remote HTTP, OAuth 2.1).
+      `render-mcp.sh` and, for Codex, `render_settings.py` handle remote vs
+      stdio per tool.
 - [x] `shared/subagents/` — 3 sub-agents (Claude + OpenCode shared):
       `code-reviewer`, `agents-harness-auditor`, `linear-triage`.
       Codex/Gemini variants would need separate render scripts; deferred.
@@ -19,8 +20,9 @@ Outstanding work for the unified agents harness and its companion MCP package. I
 
 ## Live verification
 
-- [x] `scripts/render-mcp.sh` — 4 tools render correctly; idempotent on
-      re-run; preserves Codex CLI-written sections like
+- [x] `scripts/render-mcp.sh` — Claude, OpenCode and Gemini render
+      correctly; idempotent on re-run. Codex moved to
+      `render_settings.py`, which preserves Codex CLI-written sections like
       `[projects."<path>"]`.
 - [x] `scripts/render-gemini-commands.sh` — 3 commands rendered to TOML.
 - [x] OpenCode `oh-my-openagent` plugin — confirmed working after the

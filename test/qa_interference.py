@@ -286,6 +286,21 @@ def main() -> int:
     record("PASS" if ids == ["from-low", "from-high"] else "LOSS",
            "two overlays appending land in priority order, not install order", f"Stop={ids}")
 
+    print("\n== 12. removing the overlay that brought a table Claude Code also writes into")
+    fresh_repo({"model": "base-model"})
+    make_overlay("plugins", 60, settings={"enabledPlugins": {"from-overlay@market": True}})
+    overlay_cli("add", "plugins", str(ORIGINS / "plugins"), "--priority", "60")
+    overlay_cli("install", "plugins")
+    current = live()
+    current["enabledPlugins"]["installed-at-runtime@market"] = True  # /plugin install
+    (REPO / "claude" / "settings.json").write_text(json.dumps(current, indent=2) + "\n")
+    overlay_cli("remove", "plugins")
+    plugins = live().get("enabledPlugins", {})
+    record("PASS" if plugins.get("installed-at-runtime@market") is True else "LOSS",
+           "a plugin Claude Code enabled outlives the overlay's table", str(plugins))
+    record("PASS" if "from-overlay@market" not in plugins else "LOSS",
+           "the overlay's own plugin goes with the overlay", str(plugins))
+
     print(f"\n{sum(1 for v, _, _ in FINDINGS if v == 'PASS')} pass, "
           f"{sum(1 for v, _, _ in FINDINGS if v == 'by design')} by design, "
           f"{sum(1 for v, _, _ in FINDINGS if v == 'LOSS')} loss")

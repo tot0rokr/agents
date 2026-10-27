@@ -3,9 +3,16 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
+from unittest import mock
 
-from tests._helpers import HarnessTestCase, make_overlay, overlay_cli, register_and_install
+from tests._helpers import HarnessTestCase, _git, make_overlay, overlay_cli, register_and_install
+
+
+def _commit_all(root, message: str) -> None:
+    _git(root, "add", "-A")
+    _git(root, "-c", "user.name=t", "-c", "user.email=t@e", "commit", "-qm", message)
 
 
 class OverlayToolTests(HarnessTestCase):
@@ -98,6 +105,71 @@ class OverlayToolTests(HarnessTestCase):
         )
         self.assertFalse(result["ok"])
         self.assertIn("escapes", result["error"])
+
+    def test_commit_refuses_a_local_file_an_old_gitignore_lets_through(self):
+        work = self.repo / "overlays" / "work"
+        # The template's .gitignore before *.local.toml joined it.
+        (work / ".gitignore").write_text("*.local.json\n")
+        _commit_all(work, "ignore *.local.json")
+        (work / "settings").mkdir()
+        (work / "settings" / "codex.local.toml").write_text('[mcp_servers.rig.env]\nTOKEN = "x"\n')
+        (work / "memory" / "new.md").write_text("---\nname: new\n---\n")
+        head = _git(work, "rev-parse", "HEAD").stdout
+
+        refused = self.overlay.overlay_commit("work", "add a memory", repo_path=str(self.repo))
+        self.assertFalse(refused["ok"], refused)
+        self.assertEqual(refused["refused"], ["settings/codex.local.toml"])
+        self.assertIn("'*.local.toml'", refused["error"])
+        self.assertEqual(_git(work, "rev-parse", "HEAD").stdout, head)
+        self.assertNotIn("codex.local.toml", _git(work, "diff", "--cached", "--name-only").stdout)
+
+        (work / ".gitignore").write_text("*.local.json\n*.local.toml\n")
+        result = self.overlay.overlay_commit("work", "add a memory", repo_path=str(self.repo))
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(sorted(result["files"]), [".gitignore", "memory/new.md"])
+
+    def test_commit_refuses_a_named_local_file_without_any_gitignore(self):
+        work = self.repo / "overlays" / "work"
+        (work / "vars.local.json").write_text('{"HOST": "this-machine"}\n')
+        result = self.overlay.overlay_commit(
+            "work", "vars", paths=["vars.local.json"], repo_path=str(self.repo)
+        )
+        self.assertFalse(result["ok"], result)
+        self.assertEqual(result["refused"], ["vars.local.json"])
+        self.assertEqual(_git(work, "diff", "--cached", "--name-only").stdout, "")
+
+    def test_commit_refuses_a_nested_local_file_whatever_the_pathspec_mode(self):
+        # Under GIT_GLOB_PATHSPECS a "*.local.toml" pathspec no longer matches
+        # across "/", and under GIT_LITERAL_PATHSPECS it matches nothing.
+        work = self.repo / "overlays" / "work"
+        (work / ".gitignore").write_text("*.local.json\n")
+        (work / "settings").mkdir()
+        (work / "settings" / "codex.local.toml").write_text('[mcp_servers.rig.env]\nTOKEN = "x"\n')
+        for var in ("GIT_GLOB_PATHSPECS", "GIT_LITERAL_PATHSPECS"):
+            with self.subTest(var), mock.patch.dict(os.environ, {var: "1"}):
+                result = self.overlay.overlay_commit("work", "sweep", repo_path=str(self.repo))
+                self.assertFalse(result["ok"], result)
+                self.assertEqual(result["refused"], ["settings/codex.local.toml"])
+                self.assertNotEqual(_git(work, "cat-file", "-e", "HEAD:settings/codex.local.toml").returncode, 0)
+
+    def test_commit_refuses_editing_a_tracked_local_file_but_lets_it_be_untracked(self):
+        work = self.repo / "overlays" / "work"
+        (work / "vars.local.json").write_text('{"HOST": "old"}\n')
+        _commit_all(work, "swept in before it was ignored")
+        (work / ".gitignore").write_text("*.local.json\n*.local.toml\n")
+        _commit_all(work, "ignore machine-local files")
+        # Tracked, so the new ignore rule no longer applies to it.
+        (work / "vars.local.json").write_text('{"HOST": "new"}\n')
+        refused = self.overlay.overlay_commit("work", "edit", repo_path=str(self.repo))
+        self.assertFalse(refused["ok"], refused)
+        self.assertEqual(refused["refused"], ["vars.local.json"])
+
+        _git(work, "rm", "-q", "--cached", "vars.local.json")
+        result = self.overlay.overlay_commit("work", "stop tracking vars.local.json", repo_path=str(self.repo))
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["files"], ["vars.local.json"])
+        self.assertNotEqual(_git(work, "cat-file", "-e", "HEAD:vars.local.json").returncode, 0)
+        self.assertTrue((work / "vars.local.json").is_file())
 
     def test_commit_on_an_unknown_overlay(self):
         self.assertFalse(self.overlay.overlay_commit("ghost", "m", repo_path=str(self.repo))["ok"])

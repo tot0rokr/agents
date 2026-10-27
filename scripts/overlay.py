@@ -21,6 +21,8 @@ from install import Mkdir, Symlink
 from render_settings import artifact_current, dumps, render_all, substitute
 
 OVERLAYS_REL = "overlays"
+# Owner only: the clones hold credentials (see private_overlays_dir).
+OVERLAYS_MODE = 0o700
 REGISTRY_REL = "overlays/registry.local.json"
 APPLIED_REL = "overlays/applied.local.json"
 TEMPLATE_REL = "templates/overlay-example"
@@ -134,9 +136,25 @@ def load_registry(repo_root: Path) -> list[Overlay]:
     return sorted(overlays, key=lambda o: (o.priority, o.alias))
 
 
+def private_overlays_dir(repo_root: Path) -> Path:
+    """Create overlays/ for its owner only, or close an existing one.
+
+    The clones under it hold what the public base must not, MCP credentials
+    among them (mcp/servers.json, servers.local.json, vars.local.json), and
+    git and editors write those files at the umask mode, readable by every
+    user of the machine. Closing the one directory covers every file below
+    it, .git included, whatever mode each file has.
+    """
+    path = repo_root / OVERLAYS_REL
+    path.mkdir(parents=True, exist_ok=True)
+    if path.stat().st_mode & 0o777 != OVERLAYS_MODE:
+        os.chmod(path, OVERLAYS_MODE)
+    return path
+
+
 def save_registry(repo_root: Path, overlays: list[Overlay]) -> None:
     path = repo_root / REGISTRY_REL
-    path.parent.mkdir(parents=True, exist_ok=True)
+    private_overlays_dir(repo_root)
     payload = {"overlays": [o.as_entry() for o in sorted(overlays, key=lambda o: (o.priority, o.alias))]}
     path.write_text(dumps(payload))
 
@@ -154,7 +172,7 @@ def load_applied(repo_root: Path) -> list[dict]:
 
 def save_applied(repo_root: Path, links: list[dict]) -> None:
     path = repo_root / APPLIED_REL
-    path.parent.mkdir(parents=True, exist_ok=True)
+    private_overlays_dir(repo_root)
     ordered = sorted(links, key=lambda item: (item["alias"], item["link"]))
     path.write_text(dumps({"links": ordered}))
 
@@ -346,6 +364,18 @@ def _git(args: list[str], cwd: Path | None = None) -> str:
     return proc.stdout.strip()
 
 
+def _render(repo_root: Path) -> dict[str, dict | str]:
+    """render_all, with a source that does not parse reported as an OverlayError.
+
+    That is a typo in one of the user's own files, so it gets one line naming
+    the file rather than a traceback. render_all has written nothing by then.
+    """
+    try:
+        return render_all(repo_root)
+    except ValueError as exc:
+        raise OverlayError(f"render failed: {exc}") from exc
+
+
 # ---------------------------------------------------------------------------
 # Commands
 # ---------------------------------------------------------------------------
@@ -387,7 +417,7 @@ def cmd_add(repo_root: Path, args, log) -> int:
     else:
         if not args.url:
             raise OverlayError(f"nothing at {entry.path} — pass a git url to clone")
-        entry.path.parent.mkdir(parents=True, exist_ok=True)
+        private_overlays_dir(repo_root)
         clone = ["clone", "--branch", args.ref, args.url, str(entry.path)]
         log(f"RUN   git {' '.join(clone)}")
         _git(clone)
@@ -426,10 +456,43 @@ def cmd_install(repo_root: Path, args, log) -> int:
 
     save_applied(repo_root, applied)
     sync_git_exclude(repo_root, applied)
-    for rel, merged in render_all(repo_root).items():
+    for rel, merged in _render(repo_root).items():
         if merged:
             log(f"RENDER {rel} (base + {len(enabled_overlays(repo_root))} overlay(s))")
+    # The render just read these, so this is when a machine-only file the
+    # overlay's git would pick up is worth saying — before anything commits it.
+    for overlay in enabled_overlays(repo_root):
+        for rel in unignored_local_files(overlay):
+            log(f"WARN {_unignored_hint(overlay, rel)}")
     return 0
+
+
+def unignored_local_files(overlay: Overlay) -> list[str]:
+    """LOCAL_FRAGMENT_RELS present in the overlay that its git does not ignore.
+
+    An overlay scaffolded before a pattern reached the template's .gitignore
+    (*.local.toml came after *.local.json) ignores only the older one, and
+    `git add -A` there commits the file along with whatever token it holds.
+    A file git already tracks is never ignored, whatever the .gitignore says.
+    """
+    found = []
+    for rel in LOCAL_FRAGMENT_RELS:
+        if not (overlay.path / rel).is_file():
+            continue
+        ignored = subprocess.run(
+            ["git", "check-ignore", "-q", rel], cwd=str(overlay.path), capture_output=True
+        )
+        if ignored.returncode != 0:
+            found.append(rel)
+    return found
+
+
+def _unignored_hint(overlay: Overlay, rel: str) -> str:
+    return (
+        f"{overlay.alias}/{rel} is not gitignored — add '*.local.json' and '*.local.toml' "
+        "to the overlay's .gitignore so it stays on this machine, and 'git rm --cached' "
+        "it there if git already tracks it"
+    )
 
 
 def cmd_list(repo_root: Path, args, log) -> int:
@@ -481,21 +544,19 @@ def cmd_status(repo_root: Path, args, log) -> int:
         if overlay.cloned and _git(["status", "--porcelain"], cwd=overlay.path):
             log(f"DIRTY {overlay.alias} has uncommitted changes in {overlay.path}")
             problems += 1
-        for rel in LOCAL_FRAGMENT_RELS:
-            if not (overlay.path / rel).is_file():
-                continue
-            ignored = subprocess.run(
-                ["git", "check-ignore", "-q", rel], cwd=str(overlay.path), capture_output=True
-            )
-            if ignored.returncode != 0:
-                log(
-                    f"LOCAL {overlay.alias}/{rel} is not gitignored — add '*.local.json' and '*.local.toml' "
-                    "to the overlay's .gitignore so it stays on this machine"
-                )
-                problems += 1
+        for rel in unignored_local_files(overlay):
+            log(f"LOCAL {_unignored_hint(overlay, rel)}")
+            problems += 1
 
     if (repo_root / "claude" / "settings.base.json").is_file():
-        for rel, merged in render_all(repo_root, write=False).items():
+        try:
+            rendered = render_all(repo_root, write=False)
+        except ValueError as exc:
+            # Reported like any other problem, so the checks below still run.
+            log(f"RENDER {exc}")
+            problems += 1
+            rendered = {}
+        for rel, merged in rendered.items():
             if merged and not artifact_current(repo_root, rel, merged):
                 log(f"DRIFT {rel} differs from a fresh render — run 'overlay.py install'")
                 problems += 1
@@ -706,7 +767,7 @@ def cmd_update(repo_root: Path, args, log) -> int:
 
     save_applied(repo_root, applied)
     sync_git_exclude(repo_root, applied)
-    render_all(repo_root)
+    _render(repo_root)
     return 0
 
 
@@ -730,7 +791,7 @@ def cmd_remove(repo_root: Path, args, log) -> int:
         shutil.rmtree(target.path)
         log(f"PURGE {target.path}")
 
-    render_all(repo_root)
+    _render(repo_root)
     log(f"removed '{args.alias}'")
     return 0
 
@@ -746,6 +807,8 @@ def cmd_init(repo_root: Path, args, log) -> int:
     dest = dest.resolve()
     if dest.exists():
         raise OverlayError(f"{dest} already exists")
+    if dest.parent == (repo_root / OVERLAYS_REL).resolve():
+        private_overlays_dir(repo_root)
 
     shutil.copytree(template, dest)
     name = args.name or dest.name

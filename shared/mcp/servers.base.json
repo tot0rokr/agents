@@ -1,5 +1,5 @@
 {
-  "_comment": "Canonical MCP server definitions. Edit this file and run scripts/render-mcp.sh to regenerate each tool's native MCP config block. Schema: each server has either a `url` + `transport` (for remote HTTP/SSE servers) OR a `command` + `args` (for local stdio servers). Optional: `description`, `headers`, `env`, `enabled`.",
+  "_comment": "Canonical MCP server definitions. Edit this file, then run scripts/render_settings.py (renders shared/mcp/servers.json and codex/config.toml) and after it scripts/render-mcp.sh (reads servers.json for ~/.claude.json, this file for OpenCode and Gemini). Schema: each server has either a `url` + `transport` (for remote HTTP/SSE servers) OR a `command` + `args` (for local stdio servers). Optional: `description`, `headers`, `env`, `enabled`.",
 
   "servers": {
     "linear": {

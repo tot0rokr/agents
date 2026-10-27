@@ -1,10 +1,10 @@
-"""mcp_server_set / mcp_server_remove — write routing and credential rules."""
+"""mcp_server_set / mcp_server_remove — write routing, credential rules, and what reaches Codex."""
 
 from __future__ import annotations
 
 import json
 
-from tests._helpers import HarnessTestCase, make_overlay, register_and_install
+from tests._helpers import TOML, HarnessTestCase, make_overlay, needs_toml, register_and_install
 
 
 class McpServerTests(HarnessTestCase):
@@ -22,6 +22,24 @@ class McpServerTests(HarnessTestCase):
     def effective(self) -> dict:
         return json.loads((self.repo / "shared" / "mcp" / "servers.json").read_text())["servers"]
 
+    def codex(self) -> dict:
+        return TOML.loads((self.repo / "codex" / "config.toml").read_text()).get("mcp_servers", {})
+
+    # Codex keeps its servers inside codex/config.toml rather than reading
+    # servers.json, so a write that only re-rendered servers.json would leave
+    # Codex on the old set until some unrelated full render.
+
+    @needs_toml
+    def test_a_server_set_on_the_base_reaches_codex(self):
+        self.tool.mcp_server_set("linear2", url="https://example.com/mcp", repo_path=str(self.repo))
+        self.assertEqual(self.codex().get("linear2"), {"url": "https://example.com/mcp"})
+
+    @needs_toml
+    def test_a_server_removed_from_an_overlay_leaves_codex(self):
+        self.assertIn("kb", self.codex())
+        self.tool.mcp_server_remove("kb", target="overlay:work", repo_path=str(self.repo))
+        self.assertNotIn("kb", self.codex())
+
     def test_set_on_base_writes_the_base_and_renders(self):
         result = self.tool.mcp_server_set(
             "linear2", url="https://example.com/mcp", repo_path=str(self.repo)
@@ -30,6 +48,13 @@ class McpServerTests(HarnessTestCase):
         self.assertEqual(result["wrote"], "shared/mcp/servers.base.json")
         self.assertIn("linear2", self.base())
         self.assertIn("linear2", self.effective())
+
+    def test_codex_is_reported_only_when_rendered(self):
+        # render_codex leaves the file alone without a base or a TOML reader.
+        (self.repo / "codex" / "config.base.toml").unlink()
+        result = self.tool.mcp_server_set("linear2", url="https://example.com/mcp", repo_path=str(self.repo))
+        self.assertTrue(result["render"]["ok"], result)
+        self.assertNotIn("codex/config.toml", result["render"]["written"])
 
     def test_overlay_servers_survive_a_base_write(self):
         self.tool.mcp_server_set("linear2", url="https://example.com/mcp", repo_path=str(self.repo))
@@ -59,6 +84,18 @@ class McpServerTests(HarnessTestCase):
         fragment = json.loads((self.repo / "overlays" / "work" / "mcp" / "servers.json").read_text())
         self.assertEqual(fragment["servers"]["kb"]["env"]["PASSWORD"], "hunter2")
         self.assertNotIn("hunter2", (self.repo / "shared" / "mcp" / "servers.base.json").read_text())
+
+    @needs_toml
+    def test_a_codex_source_that_does_not_parse_leaves_servers_json_alone(self):
+        before = (self.repo / "shared" / "mcp" / "servers.json").read_text()
+        (self.repo / "overlays" / "work" / "settings").mkdir(exist_ok=True)
+        (self.repo / "overlays" / "work" / "settings" / "codex.toml").write_text("model = \n")
+
+        result = self.tool.mcp_server_set("linear2", url="https://example.com/mcp", repo_path=str(self.repo))
+        self.assertFalse(result["render"]["ok"])
+        self.assertIn("work/settings/codex.toml", result["render"]["error"])
+        self.assertIn("linear2", self.base())
+        self.assertEqual((self.repo / "shared" / "mcp" / "servers.json").read_text(), before)
 
     def test_exactly_one_of_url_or_command(self):
         both = self.tool.mcp_server_set("x", url="u", command="c", repo_path=str(self.repo))

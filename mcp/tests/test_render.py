@@ -5,8 +5,10 @@ from __future__ import annotations
 import json
 
 from tests._helpers import (
+    TOML,
     HarnessTestCase,
     make_overlay,
+    needs_toml,
     register_and_install,
     write_claude_json,
 )
@@ -46,22 +48,23 @@ class RenderArtifactsTests(HarnessTestCase):
             "claude/settings.json",
             "shared/mcp/servers.json",
             "shared/memory/MEMORY.md",
-            "codex/config.toml",
+            *(["codex/config.toml"] if TOML else []),
         ):
             self.assertTrue((self.repo / rel).is_file(), rel)
 
+    @needs_toml
     def test_overlay_servers_reach_codex_privately(self):
-        import tomllib
-
         make_overlay(self.repo, "work", priority=60, servers={"kb": {"command": "/opt/kb"}})
         register_and_install(self.repo, "work", priority=60)
         self.render(scope="artifacts", repo_path=str(self.repo))
 
         codex = self.repo / "codex" / "config.toml"
-        config = tomllib.loads(codex.read_text())
+        config = TOML.loads(codex.read_text())
         self.assertEqual(config["mcp_servers"]["kb"], {"command": "/opt/kb"})
         self.assertIn("linear", config["mcp_servers"])
         self.assertEqual(codex.stat().st_mode & 0o777, 0o600)
+        servers = self.repo / "shared" / "mcp" / "servers.json"
+        self.assertEqual(servers.stat().st_mode & 0o777, 0o600)
 
     def test_overlay_content_reaches_the_artifacts(self):
         make_overlay(
@@ -81,6 +84,20 @@ class RenderArtifactsTests(HarnessTestCase):
         self.assertEqual(settings["model"], "work-model")
         self.assertIn("kb", servers["servers"])
         self.assertIn("internal", memory)
+
+    @needs_toml
+    def test_a_source_that_does_not_parse_fails_the_render_and_writes_nothing(self):
+        root = make_overlay(self.repo, "work", priority=60, settings={"model": "work-model"})
+        register_and_install(self.repo, "work", priority=60)
+        settings = self.repo / "claude" / "settings.json"
+        before = settings.read_text()
+        (root / "settings" / "claude.json").write_text(json.dumps({"model": "newer"}) + "\n")
+        (root / "settings" / "codex.toml").write_text("model = \n")
+
+        result = self.render(scope="artifacts", repo_path=str(self.repo))
+        self.assertFalse(result["ok"])
+        self.assertIn("work/settings/codex.toml", result["steps"][0]["error"])
+        self.assertEqual(settings.read_text(), before)
 
     def test_unknown_scope_is_rejected(self):
         self.assertFalse(self.render(scope="sideways", repo_path=str(self.repo))["ok"])

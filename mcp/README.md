@@ -61,7 +61,7 @@ Overlays are private repos layered onto the public base — one per environment,
 | `overlay_add` / `overlay_install` / `overlay_remove` | overlay lifecycle |
 | `overlay_setup(alias, yes)` | an overlay's environment setup steps; dry run unless `yes=True` |
 | `commit(paths, message)` | explicit-path commit, never `git add -A` |
-| `overlay_commit(alias, message)` | the same, inside an overlay's repo |
+| `overlay_commit(alias, message)` | commit inside an overlay's repo; refuses machine-only `*.local.json` / `*.local.toml` files |
 
 ## Render scopes
 

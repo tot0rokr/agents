@@ -19,6 +19,22 @@ import unittest
 from pathlib import Path
 
 REAL_SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
+
+
+def _toml_reader():
+    """tomllib, or tomli before 3.11. Without one the harness skips Codex."""
+    try:
+        import tomllib
+    except ImportError:
+        try:
+            import tomli as tomllib
+        except ImportError:
+            return None
+    return tomllib
+
+
+TOML = _toml_reader()
+needs_toml = unittest.skipIf(TOML is None, "no TOML reader, so the harness skips the Codex render")
 COPIED_SCRIPTS = ("install.py", "render_settings.py", "overlay.py")
 
 

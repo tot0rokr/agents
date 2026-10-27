@@ -70,7 +70,7 @@ This is the source of truth for setup. It runs three phases:
 2. **Phase 2** — Claude per-project memory unification. Every `~/.claude/projects/<slug>/memory/` that exists at install time, plus the one for the directory the installer runs from, is merged into `~/agents/shared/memory/` and replaced with a symlink so all four agents read and write the same memory pool. A project first opened later gets its own `memory/` directory, which stays local until the installer is run again.
 3. **Phase 3** — runtime data restore. From the fresh `~/.claude.bak.<timestamp>` the installer copies back credentials, history, sessions, file-history, per-project transcripts, and merges `settings.local.json` permissions.
 
-After the phases it renders `claude/settings.json`, `codex/config.toml` and the other render artifacts, and sets the keys in `claude/global-config.base.json` in `~/.claude.json`. Those are options Claude Code reads only from `~/.claude.json` (`leftArrowOpensAgents`, for one). Every other key in that file is kept. Re-run the installer to apply a key added to that base later.
+After the phases it renders `claude/settings.json`, `codex/config.toml` and the other render artifacts, and sets the keys in `claude/global-config.base.json` in `~/.claude.json`. Those are options Claude Code reads only from `~/.claude.json` (`leftArrowOpensAgents`, for one). Every other key in that file is kept. Re-run the installer to apply a key added to that base later. `codex/config.toml` needs a TOML reader, which Python has built in from 3.11; on 3.9 or 3.10 without the `tomli` package the installer warns and skips that one file, and the rest renders as usual.
 
 **Every mutation is tracked. If any step fails, the installer rolls back all completed mutations and exits non-zero.** If the script exits non-zero, report stderr verbatim to the user and stop — do not try to recover by hand.
 
@@ -191,7 +191,7 @@ In your final message to the user, include:
 - If `python3 install.py` fails — it auto-rolls back. Surface stderr verbatim and stop. The user is not in a broken state.
 - If `doctor.sh` fails — surface the failing checks and stop. Don't attempt to fix.
 - If your host CLI is none of the four — tell the user, stop. Don't try to install in an unknown shell.
-- If `python3` is not available — tell the user to install Python 3.9+ and stop.
+- If `python3` is not available — tell the user to install Python 3.9+ and stop. If it is 3.9 or 3.10 and the installer warned that `codex/config.toml` was not rendered, tell the user to install `tomli` (`python3 -m pip install --user tomli`, or the distro's `python3-tomli`) and re-run the installer.
 
 ### What NOT to do
 

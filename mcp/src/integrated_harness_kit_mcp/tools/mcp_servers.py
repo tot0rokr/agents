@@ -157,11 +157,14 @@ def _render(repo_root: Path) -> dict:
     written = ["shared/mcp/servers.json"]
     try:
         with repo_scripts.scripts_on_path(repo_root):
-            servers = module.render_mcp(repo_root)
-            # Codex keeps its servers inside its own rendered config.
-            if hasattr(module, "render_codex"):
-                module.render_codex(repo_root, servers=servers)
+            servers = module.render_mcp(repo_root, write=False)
+            # Codex keeps its servers inside its own rendered config. It is
+            # written first because render_codex raises before it writes, so a
+            # Codex source that does not parse leaves servers.json alone too.
+            # An empty result means it was left alone: no base, or no TOML reader.
+            if hasattr(module, "render_codex") and module.render_codex(repo_root, servers=servers):
                 written.append("codex/config.toml")
+            module.render_mcp(repo_root)
     except Exception as exc:  # noqa: BLE001
         return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
     return {"ok": True, "written": ", ".join(written)}

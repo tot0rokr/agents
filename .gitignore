@@ -9,14 +9,15 @@ overlays/
 
 # Rendered from a tracked base plus enabled overlays. Claude Code also writes
 # runtime state (autoMode.environment) straight into the settings file, which
-# is exactly what must not reach a public repo.
-claude/settings.json
-shared/mcp/servers.json
+# is exactly what must not reach a public repo. The trailing * takes in the
+# copies people make by hand (.bak, .bak.<timestamp>, .orig, ~): they hold
+# the same content. The tracked .base. sources do not match it.
+claude/settings.json*
+shared/mcp/servers.json*
 shared/memory/MEMORY.md
 # Codex writes trusted project paths into its config, and the render puts
 # overlay MCP servers there, credentials included.
-codex/config.toml
-codex/config.toml.bak.*
+codex/config.toml*
 codex/AGENTS.override.md
 *.render-tmp
 
@@ -70,9 +71,6 @@ claude/daemon.log
 claude/daemon.status.json
 # Chrome native-messaging host, installed at runtime.
 claude/chrome/
-# Backups of the rendered settings.json taken before editing it. They carry
-# the same runtime state that keeps settings.json itself out of git.
-claude/settings.json.bak.*
 # Skill sync trash. Claude Code writes it into ~/.claude/skills, which is a
 # symlink to universal/skills (the synced/ cache is ignored further down).
 universal/skills/.trash/
@@ -83,7 +81,8 @@ universal/skills/.trash/
 claude/projects/
 
 # --- Codex runtime state ---
-codex/auth.json
+# Login tokens; the * takes in a copy made by hand, which holds the same.
+codex/auth.json*
 codex/sessions/
 codex/memories/
 codex/history.jsonl
@@ -104,6 +103,9 @@ codex/state_*.sqlite*
 codex/*.sqlite
 codex/*.sqlite-shm
 codex/*.sqlite-wal
+# Codex 0.163 also copies them into db-backups/, and a copy is as private as
+# the original.
+codex/db-backups/
 codex/session_index.jsonl
 codex/.sandbox_migration
 codex/rules/

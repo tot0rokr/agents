@@ -53,19 +53,36 @@ parse_json() {
     fail=1
   fi
 }
+# Exit 2 means no TOML reader (Python < 3.11 without tomli), which says nothing
+# about the file, so it is no "invalid TOML". It does mean the renderer skips
+# codex/config.toml, which is worth a WARN.
 parse_toml() {
-  if python3 - "$1" <<'PY' 2>/dev/null; then
+  python3 - "$1" <<'PY' 2>/dev/null
 import sys
 try:
     import tomllib
 except ImportError:
-    import tomli as tomllib
+    try:
+        import tomli as tomllib
+    except ImportError:
+        sys.exit(2)
 tomllib.loads(open(sys.argv[1], 'rb').read().decode())
 PY
-    echo "OK    $1"
-  else
-    echo "FAIL  $1 (invalid TOML)"
-    fail=1
+  case $? in
+    0) echo "OK    $1" ;;
+    2) echo "WARN  $1 not checked, and codex/config.toml not rendered: no TOML reader (needs Python 3.11+ or the tomli package)" ;;
+    *) echo "FAIL  $1 (invalid TOML)"; fail=1 ;;
+  esac
+}
+
+# Both carry the overlay-merged MCP servers, credentials included, so the
+# renderer writes them 600; either one left readable exposes them.
+warn_unless_private() {
+  local mode
+  [[ -f "$REPO_ROOT/$1" ]] || return 0
+  mode="$(stat -c %a "$REPO_ROOT/$1" 2>/dev/null || stat -f %Lp "$REPO_ROOT/$1")"
+  if [[ "$mode" != "600" ]]; then
+    echo "WARN  $1 is mode $mode, not 600 — it can hold MCP credentials; re-run scripts/render_settings.py"
   fi
 }
 
@@ -78,34 +95,47 @@ parse_json "$REPO_ROOT/claude/settings.base.json"
 parse_json "$REPO_ROOT/opencode/opencode.json"
 parse_json "$REPO_ROOT/gemini/settings.json"
 parse_json "$REPO_ROOT/shared/mcp/servers.json"
+warn_unless_private shared/mcp/servers.json
 parse_toml "$REPO_ROOT/codex/config.base.toml"
 if [[ -f "$REPO_ROOT/codex/config.toml" ]]; then
   parse_toml "$REPO_ROOT/codex/config.toml"
-  codex_mode="$(stat -c %a "$REPO_ROOT/codex/config.toml" 2>/dev/null || stat -f %Lp "$REPO_ROOT/codex/config.toml")"
-  if [[ "$codex_mode" != "600" ]]; then
-    echo "WARN  codex/config.toml is mode $codex_mode, not 600 — it can hold MCP credentials; re-run scripts/render_settings.py"
-  fi
+  warn_unless_private codex/config.toml
 else
-  # Until 2026-10 the file was tracked, so the pull that untracked it deleted it.
-  echo "SKIP  codex/config.toml not rendered yet (scripts/render_settings.py). If a pull just deleted it, recover Codex's own state first:"
-  echo "      git show \"\$(git log -1 --diff-filter=D --format=%H -- codex/config.toml)^:codex/config.toml\" > codex/config.toml"
+  echo "SKIP  codex/config.toml not rendered yet (scripts/render_settings.py)"
+  # Until 2026-10 the file was tracked, so the pull that untracked it deleted it
+  # where Codex had not modified it. The first render reads that copy back from
+  # git; the command is for a checkout where git no longer has it to hand.
+  untracked_in="$(git -C "$REPO_ROOT" log -1 --diff-filter=D --format=%h -- codex/config.toml 2>/dev/null)"
+  if [[ -n "$untracked_in" ]]; then
+    echo "      If a pull deleted it: the first render restores the copy this checkout had. By hand, the last tracked one:"
+    printf '      git -C "%s" show %s^:codex/config.toml > "%s/codex/config.toml"\n' "$REPO_ROOT" "$untracked_in" "$REPO_ROOT"
+  fi
 fi
 if [[ -f "$REPO_ROOT/codex/AGENTS.override.md" ]]; then
+  # No limit to check: Codex reads this global file whole. Its 32 KiB
+  # project_doc_max_bytes caps only the AGENTS.md (and AGENTS.override.md)
+  # files it finds in a project.
   agents_size="$(wc -c < "$REPO_ROOT/codex/AGENTS.override.md")"
-  if (( agents_size > 32768 )); then
-    echo "WARN  codex/AGENTS.override.md is $agents_size bytes; Codex may cut instructions past 32768"
-  else
-    echo "OK    codex/AGENTS.override.md ($agents_size bytes)"
-  fi
+  echo "OK    codex/AGENTS.override.md ($((agents_size)) bytes)"
 fi
 
 echo
 echo "== overlays (see docs/overlay.md) =="
-if python3 "$REPO_ROOT/scripts/render_settings.py" --check >/dev/null 2>&1; then
-  echo "OK    settings.base.json and codex/config.base.toml track no local-only keys"
-else
-  echo "FAIL  a tracked base holds local-only keys — run scripts/render_settings.py --check"
+# --check prints one line per base: OK, FAIL (a local-only key, or a file
+# that does not parse) or SKIP (no TOML reader).
+check_out="$(python3 "$REPO_ROOT/scripts/render_settings.py" --check 2>&1)"
+check_rc=$?
+grep -E '^(OK|FAIL|SKIP) ' <<<"$check_out"
+if (( check_rc != 0 )); then
+  grep -q '^FAIL' <<<"$check_out" || echo "FAIL  scripts/render_settings.py --check failed"
   fail=1
+fi
+if [[ -d "$REPO_ROOT/overlays" ]]; then
+  overlays_mode="$(stat -c %a "$REPO_ROOT/overlays" 2>/dev/null || stat -f %Lp "$REPO_ROOT/overlays")"
+  if [[ "$overlays_mode" != "700" ]]; then
+    # The clones hold credentials (servers.local.json, vars.local.json) at the umask's mode.
+    echo "WARN  overlays/ is mode $overlays_mode, not 700 — other users can read the overlays' credentials; scripts/overlay.py install closes it"
+  fi
 fi
 tracked_artifacts="$(git -C "$REPO_ROOT" ls-files -- claude/settings.json shared/mcp/servers.json shared/memory/MEMORY.md codex/config.toml codex/AGENTS.override.md)"
 if [[ -n "$tracked_artifacts" ]]; then

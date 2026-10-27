@@ -219,6 +219,9 @@ def main() -> int:
     check("artifacts render ok", artifacts["ok"], json.dumps(artifacts)[:400])
     check("Codex gets the internal server", "internal-kb" in codex_path.read_text())
     check("Codex config is mode 600", codex_path.stat().st_mode & 0o777 == 0o600, oct(codex_path.stat().st_mode))
+    # servers.json holds the same overlay servers, so a 600 on Codex's copy alone protects nothing.
+    servers_path = REPO / "shared" / "mcp" / "servers.json"
+    check("servers.json is mode 600", servers_path.stat().st_mode & 0o777 == 0o600, oct(servers_path.stat().st_mode))
     untracked = subprocess.run(
         ["git", "ls-files", "codex/config.toml"], cwd=str(REPO), capture_output=True, text=True
     ).stdout.strip()
