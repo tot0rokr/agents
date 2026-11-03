@@ -18,3 +18,4 @@
 - [Pasted-code refactor style](feedback_pasted_code_refactor_style.md) — work from the paste (no repo search), keep top-of-function declarations and Yoda style, don't turn if/else into ternary, never change logic
 - [Question means design first](feedback_question_means_design_first.md) — "~할 수 있어?/~못함?/~면 좋겠다" about a build or redesign → reply with analysis + design and wait for an explicit go; read-only checks OK
 - [Isolate test editors from tmux](feedback_isolate_test_editors_from_tmux.md) — test vim/nvim: `env -u TMUX TMUX_TMPDIR=<short empty dir>`; tmuxline ignores $TMUX and hits the live server via the default socket
+- [Test in Docker isolation](feedback_test_in_docker_isolation.md) — tests that run code or have side effects go in a throwaway container: code read-only, no real HOME/credentials/sockets, --network none by default, non-root, clean up only what I created; ask before any host-side test
