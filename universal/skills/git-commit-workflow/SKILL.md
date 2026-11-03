@@ -59,17 +59,71 @@ A working tree often contains modifications from earlier sessions, the user's ow
 
 A typical violation: the agent is doing a tree-wide rename or refactor and reaches for `git add -A` so the renames register correctly. That command also stages every other modified file in the tree, including any memory or note file the user is keeping working-tree-only. Once committed and pushed (especially to a public repo), the leaked file is in history — force-push only partially scrubs it. **Stage the rename explicitly**: list the old and new paths, the imports, the config, the tests. Verbose is correct.
 
-## Write the message from the diff, not from memory
+## Prepare the message
 
-The commit message must describe what is actually being committed, not what the agent intended to do. Before writing the message:
+- Read the actual staged diff for a new commit, or `git show <commit>` for a rewrite. Describe only that change.
+- Follow the repository's documented message and release rules. Otherwise use the format and type definitions below.
+- Separate independent purposes when preparing commits. Keep a feature or fix with its related tests and documentation. Do not use a vague type to hide mixed changes.
+- When only rewording an existing commit, describe its full diff without changing its contents or splitting history unless requested.
 
-```bash
-git status \
-&& echo "--- staged diff ---" \
-&& git diff --staged
-```
+## Subject and type
 
-Read the staged diff and write the message from what is actually there. If the diff and the intended change disagree, fix the staging before writing the message.
+Use `type(scope): Subject`; add `!` immediately before `:` for a breaking change.
+
+- Use lowercase type and scope, an imperative subject, and no trailing period. Aim for at most 70 characters including the prefix.
+- Name the result and affected condition. Avoid vague subjects such as `Fix bug` or `Update code`.
+- Use one stable module or feature name as scope; omit it when no useful scope applies. Put issue references in the footer.
+- Select the type by purpose, not file extension or line count. Treat the additional types below as local conventions, not a mandatory Conventional Commits list.
+
+| Type       | Use for                                           | Body focus                                               |
+| ---------- | ------------------------------------------------- | -------------------------------------------------------- |
+| `feat`     | New user or caller capability                     | Need, interface, defaults, supported cases               |
+| `fix`      | Incorrect behavior                                | Trigger, symptom, confirmed cause, corrected behavior    |
+| `refactor` | Structure changes preserving the contract         | Structural constraint, new boundary, preserved contract  |
+| `perf`     | Lower execution or resource cost                  | Workload, bottleneck, mechanism, evidence, trade-off     |
+| `docs`     | Documentation or explanatory text only            | Missing or incorrect guidance and its correction         |
+| `test`     | Tests or test infrastructure only                 | Missing scenario or instability, new assertion           |
+| `style`    | Mechanical formatting without behavior changes    | Formatting rule and scope; omit obvious body             |
+| `build`    | Build, packaging, toolchain, routine dependencies | Build constraint, change, artifact or environment impact |
+| `ci`       | CI workflow and execution conditions              | Pipeline gap, trigger or job change, effect              |
+| `chore`    | Repository upkeep outside other types             | Specific maintenance need and scope                      |
+| `revert`   | Undoing an identified change                      | Original SHA, reason, reverted scope, restored behavior  |
+
+- Classify UI behavior as `feat` or `fix`, not formatting `style`. A fix with regression tests remains `fix`.
+- Use `fix(deps)` for a dependency change that repairs a runtime defect or vulnerability; use `build(deps)` for routine maintenance.
+- Classify configuration and migration changes by their effect. Do not label new options or changed error behavior as a behavior-preserving refactor.
+
+## Write the body
+
+- Omit the body when the subject fully explains a trivial change. Otherwise begin with the concrete problem or need and the condition under which it matters.
+- For a fix, give the trigger, symptom, and confirmed cause. When the cause is uncertain, state only what the evidence supports.
+- Connect the solution to its purpose and state the resulting behavior. Include meaningful contract changes in inputs, outputs, defaults, precedence, errors, ordering, concurrency, or lifecycle.
+- Record non-obvious design reasons, constraints, and trade-offs. Include an alternative only when its rejection explains the chosen design, and an unchanged boundary only when readers could otherwise infer a broader change.
+- Keep the essential reasoning self-contained. Use links, issue IDs, and commit references as supporting context, not substitutes for the explanation.
+- Describe the final change. Remove author narration, review chronology, file or function inventories, mechanical restatement of code, and repetition of the subject.
+- Add verification when it helps assess the change: actual command or method, result, and relevant environment. Never claim tests, integration, deployment, or migration that did not occur; state a material verification gap when it limits the claim.
+- Use short paragraphs and bullets for distinct consequences. Do not require a fixed set of headings. Wrap prose near 72 columns; preserve exact commands and URLs.
+
+## Add conditional details
+
+- For performance claims, give a comparable baseline, workload, metric, environment, and measurement method. Without measurements, describe the mechanism without inventing speedups.
+- For configuration changes, state old and new defaults, precedence, and treatment of existing values when affected.
+- For data or deployment changes, state affected data, required order, rerun behavior, and rollback limits when relevant. Distinguish adding migration code from executing it.
+- For security fixes, state the affected boundary and corrected check; link a public advisory when available. Do not include secrets or private incident details.
+- Mark broken consumer contracts with `!` and explain the old contract, affected callers, and required migration in `BREAKING CHANGE:`. The specification permits either marker; using both is this skill's default. Urgency or a dependency's major version alone does not establish a breaking change.
+
+## Commit forms and footers
+
+- For a series, describe only what each commit completes. Do not claim later integration in a preparatory commit.
+- For squash commits, rewrite from the final combined diff; discard WIP notes and intermediate attempts while preserving required attribution.
+- For merge commits, retain the repository's merge format and explain meaningful conflict-resolution choices.
+- For backports, retain the original purpose and record the source SHA, target branch differences, and verification on that target.
+- For reverts, identify the original SHA, reason, full or partial reversal, and restored behavior.
+- Use `chore(release)` for actual release metadata changes. Do not imply publication from a version edit. Treat Git tags and autosquash prefixes separately from ordinary message prefixes.
+- Put footers after a blank line. Use `Refs:` for related work and `Closes:` only for completed work; respect the hosting service's closing rules.
+- Preserve the repository's source-commit tracking format; if none exists, use `Original-Commit:` for backports.
+- Add `Co-authored-by:`, `Reviewed-by:`, and `Tested-by:` only from actual contribution or confirmation. Put test commands in the body, not `Tested-by:`.
+- Use `Signed-off-by:` only under the project's contribution policy; do not treat it as review approval or a cryptographic signature.
 
 ## Commit messages: always use a heredoc (`-F -`)
 
@@ -77,13 +131,13 @@ For every commit message — single-line or multi-paragraph — pipe the whole m
 
 ```bash
 git commit -F - <<'EOF'
-subsystem: short imperative summary
+fix(scope): Imperative summary of the corrected behavior
 
-Explain what changed and why in a normal wrapped paragraph. Reference the
-problem this addresses and any non-obvious decisions — these lines flow
-together because they are one paragraph, not separate flags.
+Start with the problem or need and the condition under which it matters,
+then how the change addresses it and any non-obvious decision — these
+lines flow together because they are one paragraph, not separate flags.
 
-- bullet points are fine; keep the body tight, not a wall of text
+- bullets are fine for distinct consequences; keep the body tight
 
 Refs: #123
 EOF
