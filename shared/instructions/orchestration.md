@@ -33,6 +33,12 @@ When spawning a teammate (an interactive agent you converse with — see the fee
 - Only do this when the work warrants a teammate (needs feedback, or independent concurrent code work past the worktree threshold), and only when inside tmux — not for trivial one-shot lookups.
 - From an interactive terminal, `claude '<task>' --worktree <name> --tmux=classic` (or `--tmux` on iTerm2) sets this up natively. It hangs when invoked from a headless/background process, so use the `tmux new-window` method there.
 
+## Subagent roles
+
+- A subagent does not spawn other subagents. It recommends follow-up work to the parent, and the parent decides and orchestrates.
+- Before fanning out reviewers, check that each one produces a different kind of finding (correctness, security, performance, docs). Two reviewers with the same lens double the cost and the noise.
+- For an intermittent failure with several plausible causes, give competing hypotheses to separate agents and converge when the evidence rules out the others, instead of one agent chasing the first idea.
+
 ## Multi-agent orchestration
 
 - Large multi-agent orchestration (fanning out many agents to one goal) is opt-in only. Use it when the user explicitly asks for it in a given session — not by default.
