@@ -17,6 +17,17 @@ Outstanding work for the unified agents harness and its companion MCP package. I
       OpenCode read `.md` directly; Gemini gets `.toml` via
       `render-gemini-commands.sh`.
 - [ ] `shared/output-styles/` — Claude-only feature today. Add when needed.
+- [ ] Floor-guard skill (adapted from addyosmani/agent-skills
+      `constraint-driven-development`): a diff-scoped check that flags
+      weakened quality bars — new `NOLINT`, `#pragma GCC diagnostic ignored`,
+      `-Wno-*`, `cppcheck-suppress`, `shellcheck disable`, `INSANE_SKIP`,
+      `ERROR_QA` → `WARN_QA`, dropped `-Werror`, skipped or deleted tests,
+      removed assertions. Python script with exit codes 0 clean / 1 violation /
+      2 could not run ("never let a 2 read as a 0"); tests in Docker.
+- [ ] Korean-aware trigger evals for `universal/skills`: positive and
+      owner-negative prompts per skill, description collision check. The
+      upstream agent-skills Tier 2 tokenizer strips Hangul, so it can't be
+      reused as is.
 
 ## Live verification
 
