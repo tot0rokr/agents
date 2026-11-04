@@ -1,6 +1,6 @@
 ---
 name: critical-file-safety
-description: Use this skill whenever about to modify a file that is hard to recover if corrupted, or whenever about to delete any file. Hard-to-recover files include system configuration (anything under /etc, /boot, /usr, systemd unit files), bootloader/kernel config (grub, kernel .config, device tree sources, U-Boot env), network and firewall config (netplan, NetworkManager, nftables, iptables), shell and editor dotfiles, container/VM runtime config, and any file outside a git-managed project's own source tree. Triggers also include any rm, rm -rf, mv to /tmp or trash, truncate, or shred. Enforces backup-before-modify with a structured filename, and treats deletion as opt-in only.
+description: Use this skill whenever about to modify a file that is hard to recover if corrupted, or whenever about to delete any file. Hard-to-recover files include system configuration (anything under /etc, /boot, /usr, systemd unit files), bootloader/kernel config (grub, kernel .config, device tree sources, U-Boot env), network and firewall config (netplan, NetworkManager, nftables, iptables), shell and editor dotfiles, container/VM runtime config, and any file outside a git-managed project's own source tree. Triggers also include any rm, rm -rf, mv to /tmp or trash, truncate, or shred. Korean triggers: "지워줘", "삭제해", "정리해서 날려", "설정 파일 고쳐", "/etc 수정", "덮어써". Enforces backup-before-modify with a structured filename, and treats deletion as opt-in only.
 ---
 
 # Critical File Safety
@@ -41,3 +41,22 @@ If deletion appears necessary to complete a task, stop and ask the user. In the 
 3. Wait for explicit approval before running the command.
 
 The same rule applies to operations that overwrite without backup - if a destination file already exists and a copy/move would clobber it, treat that as a deletion of the existing file and ask first.
+
+## Destructive operations on computed paths
+
+When the path to delete or overwrite comes from a variable, a glob, a config value or a script's output, check three things before running the command, even after the user approved the deletion:
+
+1. **It resolves under the intended root.** Resolve symlinks (`realpath`) and confirm the result is inside the directory you meant, e.g. a build or scratch directory.
+2. **It sits at least one level below that root.** Never operate on the root itself, `/`, `$HOME`, or an empty or unset variable (`rm -rf "$DIR/"` with `DIR` unset is `rm -rf /`).
+3. **You read ownership evidence first.** List what is there and confirm it is what this task created or what the user named.
+
+If any check fails, stop. Never fall back to a broader default path to make the command succeed.
+
+## Common rationalizations
+
+| Rationalization | Reality |
+|---|---|
+| "It's just a temp file, no need to ask" | The rule is about the user's intent, not file size. Ask, or leave it. |
+| "The user approved deleting it earlier" | Approval covers that operation. A new path, a new glob or a later session needs a new approval. |
+| "It's untracked, so it doesn't matter" | Untracked means git can't bring it back. That makes it more fragile, not less. |
+| "I'll back it up after this small edit" | The backup has to exist before the first edit, or it backs up the broken file. |

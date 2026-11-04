@@ -1,6 +1,6 @@
 ---
 name: git-commit-workflow
-description: Use this skill whenever about to run git commit, compose a commit message, or invoke any destructive git operation such as git reset, git restore, git checkout -- <file>, git clean, or any history-rewriting command (rebase, amend, push --force). Triggers also include staging changes with git add and any moment the agent has modified files inside a git-managed repository. Enforces commit hygiene (only commit what this agent changed, base the message on actual git status and git diff output) and a hard stop before any destructive operation that could lose user work.
+description: Use this skill whenever about to run git commit, compose a commit message, or invoke any destructive git operation such as git reset, git restore, git checkout -- <file>, git clean, or any history-rewriting command (rebase, amend, push --force). Triggers also include staging changes with git add and any moment the agent has modified files inside a git-managed repository. Korean triggers: "커밋해", "커밋하자", "커밋 메시지 써줘", "스테이징해", "되돌려", "리셋해", "리베이스해", "커밋 메시지 고쳐". Enforces commit hygiene (only commit what this agent changed, base the message on actual git status and git diff output) and a hard stop before any destructive operation that could lose user work.
 ---
 
 # Git Commit Workflow
@@ -54,6 +54,14 @@ A working tree often contains modifications from earlier sessions, the user's ow
    **Forbidden — no exceptions**: `git add -A`, `git add .`, `git add -u`, `git add :/`, or any glob that could absorb unrelated changes.
 
 4. **Verify staging matches intent.** After staging, run `git status --short` once more and `git diff --staged` again. Compare what's staged to your bucket-1 list from step 2. If anything else snuck in, `git restore --staged <path>` it and re-verify. When you hunk-staged a mixed file, this step is mandatory, not optional: confirm every excluded hunk (PII, another session's edits) still shows in `git diff` (working tree) but is **absent** from `git diff --staged`.
+
+5. **Check the staged diff for secrets without printing them.** List only the file names that match, so no value lands in the transcript:
+
+   ```bash
+   git diff --cached -i -G'password|passwd|secret|api[_-]?key|token|BEGIN .*PRIVATE KEY' --name-only
+   ```
+
+   Open each listed file and judge it yourself. If a real secret is staged, unstage it and tell the user; a secret that was already pushed has to be rotated first, then purged from history.
 
 ### Failure mode this rule blocks
 
@@ -144,6 +152,16 @@ EOF
 ```
 
 Never build a commit message from `-m` flags — not even a single-line one. git turns each `-m` into its own paragraph with a blank line between, so a body split across several `-m` flags becomes disconnected half-sentences. The heredoc form above is the only form to use.
+
+## Common rationalizations
+
+| Rationalization | Reality |
+|---|---|
+| "`git add -A` is faster and the tree is clean anyway" | You checked the tree you expected, not the one that's there. Stage by path; it costs seconds. |
+| "The user said commit earlier, so this one is fine too" | Each commit needs its own request. An earlier "commit" covered that change. |
+| "It's a one-line message, `-m` is fine" | `-m` habits split bodies into broken paragraphs later. Use the heredoc every time. |
+| "I'll write the message from what I meant to change" | The message describes the staged diff. If they disagree, fix the staging. |
+| "It's only my own unpushed commit, amending is harmless" | Amending after a failed hook can lose work. Make a new commit unless the user asked for an amend. |
 
 ## Destructive operations require explicit user approval
 
