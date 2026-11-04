@@ -232,6 +232,91 @@ class TestPhase2SlugDiscovery(InstallTestBase):
         )
 
 
+class TestProjectSlug(unittest.TestCase):
+    def test_every_non_alphanumeric_character_becomes_a_dash(self):
+        self.assertEqual(install_mod.project_slug(Path("/home/a.b/x_y")), "-home-a-b-x-y")
+        self.assertEqual(install_mod.project_slug(Path("/home/a/.dotfiles")), "-home-a--dotfiles")
+
+
+class TestPhase2ExistingMemoryDir(InstallTestBase):
+    """Re-running the installer from a project whose memory/ Claude Code made since."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        # Already installed: ~/.claude is the repo's claude/.
+        (self.home / ".claude").symlink_to(self.repo.resolve() / "claude")
+        project = self.home / "my.project"
+        project.mkdir()
+        os.chdir(project)
+        self.slug = install_mod.project_slug(Path.cwd())
+        self.mem = self.repo / "claude" / "projects" / self.slug / "memory"
+        self.mem.mkdir(parents=True)
+        (self.mem / "MEMORY.md").write_text("- [note](note.md) — project\n")
+        (self.mem / "note.md").write_text("project memory")
+        (self.mem / "same.md").write_text("project text")
+        self.shared = self.repo / "shared" / "memory"
+        (self.shared / "MEMORY.md").write_text("- [base](base.md) — public\n")
+        (self.shared / "same.md").write_text("shared text")
+
+    def test_its_memories_join_the_pool_before_it_is_moved_aside(self):
+        result = install(home=self.home, repo_root=self.repo)
+
+        self.assertTrue(self.mem.is_symlink())
+        self.assertEqual(link_target(self.mem), self.shared.resolve())
+        self.assertEqual((self.shared / "note.md").read_text(), "project memory")
+        self.assertEqual(
+            (self.shared / "MEMORY.md").read_text(),
+            "- [base](base.md) — public\n- [note](note.md) — project\n",
+        )
+        self.assertEqual((self.shared / "same.md").read_text(), "shared text")
+        backups = list(self.mem.parent.glob("memory.bak.*"))
+        self.assertEqual(len(backups), 1)
+        self.assertEqual((backups[0] / "same.md").read_text(), "project text")
+        self.assertTrue(any("same.md" in msg and "differs" in msg for msg in result.skipped), result.skipped)
+
+    def test_the_dry_run_shows_the_merge(self):
+        lines: list[str] = []
+        install(home=self.home, repo_root=self.repo, dry_run=True, log=lines.append)
+
+        text = "\n".join(lines)
+        self.assertIn("merge-missing", text)
+        self.assertIn("merge-index", text)
+        self.assertIn(f"{self.slug}/memory.bak.", text)
+        self.assertFalse(self.mem.is_symlink())
+        self.assertFalse((self.shared / "note.md").exists())
+
+    def test_a_failure_puts_everything_back(self):
+        original = Symlink.apply
+
+        def fail_on_memory_link(op):
+            if op.target.name == "memory":
+                raise RuntimeError("injected failure")
+            original(op)
+
+        Symlink.apply = fail_on_memory_link
+        with self.assertRaises(RuntimeError):
+            install(home=self.home, repo_root=self.repo)
+
+        self.assertEqual((self.shared / "MEMORY.md").read_text(), "- [base](base.md) — public\n")
+        self.assertFalse((self.shared / "note.md").exists())
+        self.assertFalse(self.mem.is_symlink())
+        self.assertEqual((self.mem / "note.md").read_text(), "project memory")
+
+
+class TestPhase2BackupIndex(InstallTestBase):
+    def test_the_backed_up_index_lines_reach_the_pool(self):
+        mem = self.home / ".claude" / "projects" / "-old-slug" / "memory"
+        mem.mkdir(parents=True)
+        (mem / "MEMORY.md").write_text("- [old](old.md) — from the old home\n")
+        (mem / "old.md").write_text("old memory")
+        (self.repo / "shared" / "memory" / "MEMORY.md").write_text("- [base](base.md) — public\n")
+
+        install(home=self.home, repo_root=self.repo)
+
+        self.assertIn("- [old](old.md) — from the old home", (self.repo / "shared/memory/MEMORY.md").read_text())
+        self.assertEqual((self.repo / "shared/memory/old.md").read_text(), "old memory")
+
+
 class TestRollback(InstallTestBase):
     def _inject_failure_on_nth_symlink(self, n: int):
         original = Symlink.apply

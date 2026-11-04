@@ -49,6 +49,18 @@ LINK_PATHS = [
 MEMORY_PARENT = "projects"  # under ~/.claude
 SHARED_MEMORY_REL = "shared/memory"
 
+_NOT_SLUG = re.compile(r"[^A-Za-z0-9]")
+
+
+def project_slug(path: Path) -> str:
+    """The name Claude Code gives a directory's project under ~/.claude/projects.
+
+    Every character other than an ASCII letter or digit becomes `-`, so
+    `/home/a.b/x_y` is `-home-a-b-x-y`. Replacing only `/` names a directory
+    Claude Code never reads wherever the path has a dot or an underscore.
+    """
+    return _NOT_SLUG.sub("-", str(path))
+
 # Claude Code reads some options (leftArrowOpensAgents, for one) only from
 # ~/.claude.json, never from settings.json, so they cannot live in the base.
 GLOBAL_CONFIG_BASE_REL = "claude/global-config.base.json"
@@ -219,6 +231,46 @@ class MergeMissingFiles(Op):
                 shutil.rmtree(path, ignore_errors=True)
             elif path.exists() or path.is_symlink():
                 path.unlink()
+
+
+@dataclass
+class MergeIndexLines(Op):
+    """Append the lines of index `src` that index `dst` does not have.
+
+    A memory index is a list of pointer lines, one per memory file, so two of
+    them merge line by line. MergeMissingFiles skips an index the pool already
+    has, and without this the pointers to the files it did copy would be lost.
+    """
+
+    src: Path
+    dst: Path
+    _before: bytes | None = field(default=None, init=False)
+    _wrote: bool = field(default=False, init=False)
+
+    def __post_init__(self) -> None:
+        self.description = f"merge-index {self.src} -> {self.dst}"
+
+    def apply(self) -> None:
+        if not self.src.is_file():
+            return
+        text = self.dst.read_text() if self.dst.is_file() else ""
+        have = {line.strip() for line in text.splitlines()}
+        new = [line for line in self.src.read_text().splitlines() if line.strip() and line.strip() not in have]
+        if not new:
+            return
+        self._before = self.dst.read_bytes() if self.dst.is_file() else None
+        if text and not text.endswith("\n"):
+            text += "\n"
+        self.dst.write_text(text + "\n".join(new) + "\n")
+        self._wrote = True
+
+    def rollback(self) -> None:
+        if not self._wrote:
+            return
+        if self._before is None:
+            self.dst.unlink(missing_ok=True)
+        else:
+            self.dst.write_bytes(self._before)
 
 
 @dataclass
@@ -448,7 +500,7 @@ class Installer:
                 claude_bak / "projects" / slug / "memory" if claude_bak else None
             )
             if bak_mem and bak_mem.is_dir():
-                self._record(MergeMissingFiles(bak_mem, self.shared_memory))
+                self._merge_memory(bak_mem, kept_at=bak_mem)
 
             self._record(Mkdir(parent))
 
@@ -458,9 +510,35 @@ class Installer:
                 self._record(_Unlink(mem_link))
             elif mem_link.exists():
                 backup = mem_link.with_name(mem_link.name + f".bak.{self.ts}")
+                # A memory directory Claude Code made since the last install
+                # holds memories the pool has never seen; moving it aside
+                # without this would take them out of use.
+                if mem_link.is_dir():
+                    self._merge_memory(mem_link, kept_at=backup)
                 self._record(Backup(mem_link, backup))
 
             self._record(Symlink(self.shared_memory, mem_link))
+
+    def _merge_memory(self, src: Path, kept_at: Path) -> None:
+        """Bring a project's memory directory into the shared pool.
+
+        Files the pool lacks are copied and the pointer lines its index lacks
+        are appended; the render carries those lines over. A file the pool has
+        under the same name with other content is not copied: the pool's copy
+        stays, and the skip list names the file and where the other one is kept.
+        """
+        for child in sorted(src.iterdir()):
+            theirs = self.shared_memory / child.name
+            if child.name == "MEMORY.md" or not child.is_file() or not theirs.is_file():
+                continue
+            if theirs.read_bytes() != child.read_bytes():
+                self.result.skipped.append(
+                    f"phase 2: {theirs} differs from {child}; the shared copy stays, "
+                    f"the other is kept at {kept_at / child.name}"
+                )
+        self._record(MergeMissingFiles(src, self.shared_memory))
+        if (src / "MEMORY.md").is_file():
+            self._record(MergeIndexLines(src / "MEMORY.md", self.shared_memory / "MEMORY.md"))
 
     def _discover_slugs(self, claude_bak: Path | None) -> list[str]:
         slugs: list[str] = []
@@ -469,7 +547,7 @@ class Installer:
                 if (sub / "memory").exists():
                     slugs.append(sub.name)
 
-        cwd_slug = str(Path.cwd()).replace("/", "-")
+        cwd_slug = project_slug(Path.cwd())
         if cwd_slug not in slugs:
             slugs.append(cwd_slug)
         return slugs
