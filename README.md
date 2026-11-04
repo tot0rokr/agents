@@ -167,7 +167,7 @@ All four tools auto-discover. No render step.
 
 Writing guidelines:
 
-- The description says what the skill does and when to use it, in at most 1024 characters. Don't summarize the procedure there: an agent may follow the summary instead of reading the skill. For skills the user invokes in Korean, append `Korean triggers: "…", "…"` with phrases people actually type.
+- The description says what the skill does and when to use it, in at most 1024 characters. Don't summarize the procedure there: an agent may follow the summary instead of reading the skill. For skills the user invokes in Korean, append `Korean triggers include "…", "…"` with phrases people actually type. Avoid an unquoted `: ` anywhere in the description: strict YAML parsers (Codex, OpenCode) read it as a nested key and drop the whole skill.
 - Keep `SKILL.md` under about 500 lines. Move long reference material into files next to it, one level deep.
 - Sections that pay off: when to use it (and when not), the process, common rationalizations (the excuses an agent uses to skip a step, each with a rebuttal), red flags, and verification (the evidence that the work is done).
 - If removing a sentence wouldn't change how the agent behaves, remove it.

@@ -1,6 +1,6 @@
 ---
 name: git-commit-workflow
-description: Use this skill whenever about to run git commit, compose a commit message, or invoke any destructive git operation such as git reset, git restore, git checkout -- <file>, git clean, or any history-rewriting command (rebase, amend, push --force). Triggers also include staging changes with git add and any moment the agent has modified files inside a git-managed repository. Korean triggers: "커밋해", "커밋하자", "커밋 메시지 써줘", "스테이징해", "되돌려", "리셋해", "리베이스해", "커밋 메시지 고쳐". Enforces commit hygiene (only commit what this agent changed, base the message on actual git status and git diff output) and a hard stop before any destructive operation that could lose user work.
+description: Use this skill whenever about to run git commit, compose a commit message, or invoke any destructive git operation such as git reset, git restore, git checkout -- <file>, git clean, or any history-rewriting command (rebase, amend, push --force). Triggers also include staging changes with git add and any moment the agent has modified files inside a git-managed repository. Korean triggers include "커밋해", "커밋하자", "커밋 메시지 써줘", "스테이징해", "되돌려", "리셋해", "리베이스해", "커밋 메시지 고쳐". Enforces commit hygiene (only commit what this agent changed, base the message on actual git status and git diff output) and a hard stop before any destructive operation that could lose user work.
 ---
 
 # Git Commit Workflow

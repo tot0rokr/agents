@@ -1,6 +1,6 @@
 ---
 name: bash-command-style
-description: Use this skill whenever composing a shell command that chains two or more commands using &&, ||, or ;, or whenever needing to recover what the user has typed previously in their shell. Triggers include any build/install pipeline, any multi-step setup, any "do A then B then C" shell sequence, and any moment when the user references something they ran earlier that is not in the agent's conversation context. Korean triggers: "명령 이어서 실행", "한 줄로 묶어서", "빌드하고 설치까지", "아까 내가 친 명령", "history 확인". Enforces readable multi-line formatting with backslash continuations and echo separators between steps, and uses the history command to recover prior user input since history is shared across tty sessions.
+description: Use this skill whenever composing a shell command that chains two or more commands using &&, ||, or ;, or whenever needing to recover what the user has typed previously in their shell. Triggers include any build/install pipeline, any multi-step setup, any "do A then B then C" shell sequence, and any moment when the user references something they ran earlier that is not in the agent's conversation context. Korean triggers include "명령 이어서 실행", "한 줄로 묶어서", "빌드하고 설치까지", "아까 내가 친 명령", "history 확인". Enforces readable multi-line formatting with backslash continuations and echo separators between steps, and uses the history command to recover prior user input since history is shared across tty sessions.
 ---
 
 # Bash Command Style
