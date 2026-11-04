@@ -77,6 +77,14 @@ class OverlayToolTests(HarnessTestCase):
         self.assertTrue(result["ok"], result)
         self.assertTrue((self.repo / "shared" / "memory" / "added.md").is_symlink())
 
+    def test_install_dry_run_reports_and_changes_nothing(self):
+        (self.repo / "overlays" / "work" / "memory" / "added.md").write_text("---\nname: added\n---\n")
+        result = self.overlay.overlay_install("work", repo_path=str(self.repo), dry_run=True)
+        self.assertTrue(result["ok"], result)
+        self.assertIn("LINK  shared/memory/added.md", result["stdout"])
+        self.assertIn("dry run: nothing was changed", result["stdout"])
+        self.assertFalse((self.repo / "shared" / "memory" / "added.md").exists())
+
     def test_remove_unlinks_and_forgets(self):
         result = self.overlay.overlay_remove("work", repo_path=str(self.repo))
         self.assertTrue(result["ok"], result)

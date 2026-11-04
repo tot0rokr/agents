@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import difflib
 import json
 import os
 import re
@@ -422,6 +423,101 @@ def artifact_current(repo_root: Path, rel: str, rendered: dict | str) -> bool:
     except ValueError:
         return False
     return text == rendered
+
+
+# A dry run prints values to a terminal, and servers.json and codex/config.toml
+# carry overlay credentials. Values under these keys print as <hidden>.
+_SECRET_TABLES = {"env", "headers", "http_headers", "env_http_headers"}
+_SECRET_KEY = re.compile(r"token|secret|passw|credential|api_?key|auth", re.IGNORECASE)
+_BARE_SEGMENT = re.compile(r"[A-Za-z0-9_-]+")
+_SHOWN_VALUE = 100
+
+
+def _leaves(obj: Any, path: tuple = ()) -> dict[tuple, Any]:
+    """Flatten parsed config to {path: scalar}; list indices are ints in the path."""
+    if isinstance(obj, dict) and obj:
+        items = obj.items()
+    elif isinstance(obj, list) and obj:
+        items = enumerate(obj)
+    else:
+        return {path: obj}
+    out: dict[tuple, Any] = {}
+    for key, val in items:
+        out.update(_leaves(val, path + (key,)))
+    return out
+
+
+def _path_text(path: tuple) -> str:
+    out = ""
+    for part in path:
+        if isinstance(part, int):
+            out += f"[{part}]"
+        elif _BARE_SEGMENT.fullmatch(part):
+            out += f".{part}" if out else part
+        else:
+            out += f"[{json.dumps(part, ensure_ascii=False)}]"
+    return out
+
+
+def _value_text(path: tuple, value: Any) -> str:
+    if any(isinstance(p, str) and (p in _SECRET_TABLES or _SECRET_KEY.search(p)) for p in path):
+        return "<hidden>"
+    text = json.dumps(value, ensure_ascii=False, default=str)
+    return text if len(text) <= _SHOWN_VALUE else text[: _SHOWN_VALUE - 1] + "…"
+
+
+def describe_change(repo_root: Path, rel: str, rendered: dict | str) -> list[str]:
+    """What writing `rendered` to `rel` would change, one line per change.
+
+    Empty when the file already holds it. JSON and TOML compare key by key
+    (`+` added, `-` removed, `~` changed), Markdown line by line. A missing
+    file counts as empty, so every line of the render shows as added.
+    """
+    if not rendered or artifact_current(repo_root, rel, rendered):
+        return []
+    path = repo_root / rel
+    text = path.read_text() if path.is_file() else ""
+    if isinstance(rendered, str):
+        # The first two lines are the file headers. Matching them by prefix
+        # would also drop a removed `---` rule, which reads `----`.
+        diff = list(difflib.unified_diff(text.splitlines(), rendered.splitlines(), lineterm="", n=0))[2:]
+        return [line for line in diff if not line.startswith("@@")]
+    try:
+        if not text:
+            current = {}
+        elif rel.endswith(".toml"):
+            current = tomllib.loads(text)
+        else:
+            current = json.loads(text)
+    except ValueError:
+        return [f"{rel} does not parse now; the render would replace it whole"]
+    old, new = (_leaves(current) if current else {}), _leaves(rendered)
+    numbers = rel.endswith(".json")
+    lines = []
+    for key, val in new.items():
+        if key not in old:
+            lines.append(f"+ {_path_text(key)} = {_value_text(key, val)}")
+        elif not same_data(old[key], val, numbers_by_value=numbers):
+            lines.append(f"~ {_path_text(key)}: {_value_text(key, old[key])} -> {_value_text(key, val)}")
+    lines += [f"- {_path_text(key)} = {_value_text(key, val)}" for key, val in old.items() if key not in new]
+    return lines
+
+
+def preview(repo_root: Path, rendered: dict[str, dict | str], limit: int = 40) -> list[str]:
+    """A dry run's report of a render: per artifact, what writing it would change."""
+    out = []
+    for rel, value in rendered.items():
+        if not value:
+            continue
+        changes = describe_change(repo_root, rel, value)
+        if not changes:
+            out.append(f"{rel}: no change")
+            continue
+        out.append(f"{rel}: {len(changes)} change(s)")
+        out += [f"    {line}" for line in changes[:limit]]
+        if len(changes) > limit:
+            out.append(f"    … {len(changes) - limit} more")
+    return out
 
 
 def _tighten(path: Path) -> bool:

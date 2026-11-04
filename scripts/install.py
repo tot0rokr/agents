@@ -46,7 +46,7 @@ LINK_PATHS = [
 
 # Codex/OpenCode/Gemini settle their own paths; only Claude has the
 # per-project memory channel that we want to unify.
-MEMORY_PARENT = ".claude/projects"
+MEMORY_PARENT = "projects"  # under ~/.claude
 SHARED_MEMORY_REL = "shared/memory"
 
 # Claude Code reads some options (leftArrowOpensAgents, for one) only from
@@ -357,11 +357,16 @@ class Installer:
         return self.result
 
     def _render_settings(self) -> None:
-        if self.dry_run or not (self.repo_root / "claude" / "settings.base.json").is_file():
+        if not (self.repo_root / "claude" / "settings.base.json").is_file():
             return
         sys.path.insert(0, str(self.repo_root / "scripts"))
-        from render_settings import render_all
+        from render_settings import preview, render_all
 
+        if self.dry_run:
+            # The render reads only the repo, so the home links make no difference to it.
+            for line in preview(self.repo_root, render_all(self.repo_root, write=False)):
+                self.log(f"DRY: render {line}")
+            return
         for rel, merged in render_all(self.repo_root).items():
             if merged:
                 self.log(f"RUN: render {rel}")
@@ -373,13 +378,16 @@ class Installer:
         of the file is Claude Code's runtime state and is written back as is.
         """
         base_path = self.repo_root / GLOBAL_CONFIG_BASE_REL
-        if self.dry_run or not base_path.is_file():
+        if not base_path.is_file():
             return
         base = json.loads(base_path.read_text())
         target = self.home / ".claude.json"
         live = json.loads(target.read_text()) if target.is_file() else {}
         changed = sorted(key for key, val in base.items() if live.get(key) != val)
         if not changed:
+            return
+        if self.dry_run:
+            self.log(f"DRY: set {', '.join(changed)} in {target}")
             return
         self.log(f"RUN: set {', '.join(changed)} in {target}")
         tmp = target.with_name(target.name + ".install-tmp")
@@ -390,7 +398,8 @@ class Installer:
     # ---- phase 1: top-level symlinks ----
 
     def _phase1_symlinks(self) -> None:
-        (self.home / ".config").mkdir(parents=True, exist_ok=True)
+        if not self.dry_run:
+            (self.home / ".config").mkdir(parents=True, exist_ok=True)
 
         for home_rel, repo_rel in LINK_PATHS:
             target = self.home / home_rel
@@ -409,14 +418,30 @@ class Installer:
 
             self._record(Symlink(source, target))
 
+    # A dry run moves nothing, so the later phases would find no backup and an
+    # unlinked ~/.claude, and preview less than a real run does. These two
+    # name where the real run will read and write once Phase 1 is done.
+
+    def _moved_aside(self, home_rel: str) -> Path | None:
+        """Where the contents of a ~/<home_rel> that Phase 1 backs up are read from."""
+        target = self.home / home_rel
+        backup = self.result.backups.get(target)
+        if backup is None:
+            return None
+        return target if self.dry_run else backup
+
+    def _claude_dir(self) -> Path:
+        """~/.claude as it is after Phase 1: a link to the repo's claude/."""
+        return self.repo_root / "claude" if self.dry_run else self.home / ".claude"
+
     # ---- phase 2: memory unification ----
 
     def _phase2_memory(self) -> None:
-        claude_bak = self.result.backups.get(self.home / ".claude")
+        claude_bak = self._moved_aside(".claude")
         slugs = self._discover_slugs(claude_bak)
 
         for slug in slugs:
-            mem_link = self.home / MEMORY_PARENT / slug / "memory"
+            mem_link = self._claude_dir() / MEMORY_PARENT / slug / "memory"
             parent = mem_link.parent
 
             bak_mem = (
@@ -455,17 +480,17 @@ class Installer:
         # A Codex that ran before the harness has its own config.toml, with the
         # projects it trusts. codex/config.toml is rendered, not tracked, so the
         # render starts from that file instead of from the base alone.
-        codex_bak = self.result.backups.get(self.home / ".codex")
+        codex_bak = self._moved_aside(".codex")
         codex_live = self.repo_root / "codex" / "config.toml"
         if codex_bak and (codex_bak / "config.toml").is_file() and not codex_live.exists():
             self._record(CopyFile(codex_bak / "config.toml", codex_live))
 
-        claude_bak = self.result.backups.get(self.home / ".claude")
+        claude_bak = self._moved_aside(".claude")
         if not claude_bak or not claude_bak.is_dir():
             self.result.skipped.append("phase 3: no fresh ~/.claude backup")
             return
 
-        cur = self.home / ".claude"
+        cur = self._claude_dir()
 
         # .credentials.json — copy if missing
         cred_src = claude_bak / ".credentials.json"
@@ -687,7 +712,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  guide: {result.reconcile_report}")
 
     print()
-    print("Done. Run 'scripts/doctor.sh' to verify.")
+    if args.dry_run:
+        print("Dry run: nothing was changed. Run it again without --dry-run to apply.")
+    else:
+        print("Done. Run 'scripts/doctor.sh' to verify.")
     return 0
 
 

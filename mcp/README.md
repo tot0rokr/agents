@@ -58,7 +58,7 @@ Overlays are private repos layered onto the public base — one per environment,
 | `bootstrap()` | clone, install, render, apply overlays, verify |
 | `update()` | pull, re-render, re-apply overlays, doctor |
 | `render(scope)` | `artifacts`, `public`, `local` — see below |
-| `overlay_add` / `overlay_install` / `overlay_remove` | overlay lifecycle |
+| `overlay_add` / `overlay_install` / `overlay_remove` | overlay lifecycle; `overlay_install(dry_run=True)` reports the links and rendered keys it would change |
 | `overlay_setup(alias, yes)` | an overlay's environment setup steps; dry run unless `yes=True` |
 | `commit(paths, message)` | explicit-path commit, never `git add -A` |
 | `overlay_commit(alias, message)` | commit inside an overlay's repo; refuses machine-only `*.local.json` / `*.local.toml` files |

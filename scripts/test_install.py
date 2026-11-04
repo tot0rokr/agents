@@ -292,6 +292,35 @@ class TestDryRun(InstallTestBase):
         self.assertEqual((claude / "important.txt").read_text(), "data")
         self.assertFalse((self.home / ".codex").exists())
         self.assertEqual(list(self.home.glob(".claude.bak.*")), [])
+        self.assertFalse((self.home / ".config").exists())
+
+    def test_dry_run_previews_what_a_real_claude_dir_would_carry_over(self):
+        mem = self.home / ".claude" / "projects" / "-old-slug" / "memory"
+        mem.mkdir(parents=True)
+        (mem / "note.md").write_text("project memory")
+        (self.home / ".claude" / "history.jsonl").write_text("{}\n")
+
+        lines: list[str] = []
+        install(home=self.home, repo_root=self.repo, dry_run=True, log=lines.append)
+
+        text = "\n".join(lines)
+        repo = self.repo.resolve()
+        self.assertIn(f"merge-missing {mem.resolve()}/* -> {repo / 'shared/memory'}/", text)
+        self.assertIn(f"ln -s {repo / 'shared/memory'} {repo / 'claude/projects/-old-slug/memory'}", text)
+        self.assertIn(f"concat {self.home.resolve() / '.claude/history.jsonl'} + {repo / 'claude/history.jsonl'}", text)
+        self.assertFalse((self.repo / "claude" / "projects").exists())
+        self.assertFalse((self.repo / "shared" / "memory" / "note.md").exists())
+
+    def test_dry_run_previews_the_render_and_writes_nothing(self):
+        (self.repo / "claude" / "settings.base.json").write_text(json.dumps({"model": "m"}))
+
+        lines: list[str] = []
+        install(home=self.home, repo_root=self.repo, dry_run=True, log=lines.append)
+
+        self.assertIn("DRY: render claude/settings.json: 1 change(s)", lines)
+        self.assertIn('DRY: render     + model = "m"', lines)
+        self.assertFalse((self.repo / "claude" / "settings.json").exists())
+        self.assertFalse((self.repo / "overlays").exists())
 
 
 class TestGlobalConfig(InstallTestBase):
@@ -325,9 +354,11 @@ class TestGlobalConfig(InstallTestBase):
     def test_dry_run_leaves_the_file_alone(self):
         self.claude_json.write_text('{"leftArrowOpensAgents": true}')
 
-        install(home=self.home, repo_root=self.repo, dry_run=True)
+        lines: list[str] = []
+        install(home=self.home, repo_root=self.repo, dry_run=True, log=lines.append)
 
         self.assertEqual(self.claude_json.read_text(), '{"leftArrowOpensAgents": true}')
+        self.assertIn(f"DRY: set leftArrowOpensAgents in {self.claude_json.resolve()}", lines)
 
 
 if __name__ == "__main__":

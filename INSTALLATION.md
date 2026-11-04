@@ -74,7 +74,7 @@ After the phases it renders `claude/settings.json`, `codex/config.toml` and the 
 
 **Every mutation is tracked. If any step fails, the installer rolls back all completed mutations and exits non-zero.** If the script exits non-zero, report stderr verbatim to the user and stop — do not try to recover by hand.
 
-For dry-run preview, add `--dry-run`. You shouldn't need this unless the user asks.
+For a preview, add `--dry-run`. It writes nothing and lists the links each phase would make or move aside, what Phase 2 and 3 would carry over, the keys and lines the render would change in each rendered file, and the `~/.claude.json` keys it would set. You shouldn't need this unless the user asks.
 
 ### Step 4 — Verify
 

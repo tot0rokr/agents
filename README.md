@@ -76,7 +76,7 @@ agents/
 git clone <this repo> ~/agents
 cd ~/agents
 ./scripts/doctor.sh              # verify internal layout
-./scripts/install.sh --dry-run   # preview home-dir symlinks
+./scripts/install.sh --dry-run   # preview links, migration and render changes; writes nothing
 ./scripts/install.sh             # actually install
 ```
 
@@ -105,6 +105,7 @@ This repo is public, so nothing environment-specific belongs in it — no employ
 scripts/overlay.py init work                 # scaffolds overlays/work from the template
 scripts/overlay.py add work --priority 60    # register what is already at overlays/work
 scripts/overlay.py add work <git-url>        # or clone it there first, on another machine
+scripts/overlay.py install work --dry-run    # the links and rendered keys it would change; writes nothing
 scripts/overlay.py install work              # symlink content, re-render settings and MCP
 scripts/overlay.py setup work --dry-run      # what still needs setting up by hand or by agent
 scripts/overlay.py route --explain           # which overlay owns the work in this directory

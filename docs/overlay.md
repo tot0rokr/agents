@@ -124,7 +124,7 @@ Codex also does not follow links, so the instruction files `shared/AGENTS.md` li
 
 ```
 scripts/overlay.py add <alias> [<git-url>] [--ref REF] [--priority N]
-scripts/overlay.py install [<alias>]
+scripts/overlay.py install [<alias>] [--dry-run]
 scripts/overlay.py list
 scripts/overlay.py status
 scripts/overlay.py setup [<alias>] [--dry-run] [--yes] [--only ID...] [--interactive]
@@ -133,7 +133,7 @@ scripts/overlay.py remove <alias> [--purge]
 scripts/overlay.py init <dir> [--name NAME]
 ```
 
-`add` registers an overlay, cloning it into `overlays/<alias>` when nothing is there yet. When the clone is already in place — the machine the overlay was authored on, or one where you cloned it by hand — leave the URL off and it registers what it finds, taking the URL and ref from the clone itself. Without `--priority`, the priority comes from the overlay's `overlay.json` (50 if it declares none); it is read once, at `add`, so a later change to the manifest needs `remove` and `add` again to take effect. `install` applies every enabled overlay, or just the one named. `update` pulls and re-applies. `remove` unlinks what the overlay contributed and re-renders; `--purge` also deletes the clone. `init` scaffolds from `templates/overlay-example/`, into `overlays/<alias>` for a bare alias or wherever a path points.
+`add` registers an overlay, cloning it into `overlays/<alias>` when nothing is there yet. When the clone is already in place — the machine the overlay was authored on, or one where you cloned it by hand — leave the URL off and it registers what it finds, taking the URL and ref from the clone itself. Without `--priority`, the priority comes from the overlay's `overlay.json` (50 if it declares none); it is read once, at `add`, so a later change to the manifest needs `remove` and `add` again to take effect. `install` applies every enabled overlay, or just the one named. With `--dry-run` it changes nothing and reports what a real run would: each link it would add (`LINK`) or remove (`UNLINK`), the `.git/info/exclude` lines that would change (`EXCLUDE`), and for every rendered file the keys (JSON, TOML) or lines (Markdown) the render would add, change or remove (`RENDER`). Values under `env` and header tables, and under keys naming a token, secret, password or auth, print as `<hidden>`. The render preview reads `shared/instructions/` as it is linked at that moment; when the run would change those links it says so. `update` pulls and re-applies. `remove` unlinks what the overlay contributed and re-renders; `--purge` also deletes the clone. `init` scaffolds from `templates/overlay-example/`, into `overlays/<alias>` for a bare alias or wherever a path points.
 
 ## Routing records to the right overlay
 

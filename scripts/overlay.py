@@ -18,7 +18,7 @@ from fnmatch import fnmatch
 from pathlib import Path
 
 from install import Mkdir, Symlink
-from render_settings import OVERLAYS_MODE, artifact_current, dumps, render_all, substitute
+from render_settings import OVERLAYS_MODE, artifact_current, dumps, preview, render_all, substitute
 
 OVERLAYS_REL = "overlays"
 REGISTRY_REL = "overlays/registry.local.json"
@@ -175,18 +175,21 @@ def save_applied(repo_root: Path, links: list[dict]) -> None:
     path.write_text(dumps({"links": ordered}))
 
 
-def sync_git_exclude(repo_root: Path, links: list[dict]) -> None:
-    """Keep overlay-provided symlinks out of `git status` without touching .gitignore."""
+def sync_git_exclude(repo_root: Path, links: list[dict], write: bool = True) -> list[str]:
+    """Keep overlay-provided symlinks out of `git status` without touching .gitignore.
+
+    Returns the exclude lines that change, as `+/path` and `-/path`.
+    """
     try:
         exclude = Path(_git(["rev-parse", "--git-path", "info/exclude"], cwd=repo_root))
     except OverlayError:
-        return
+        return []
     if not exclude.is_absolute():
         exclude = repo_root / exclude
-    exclude.parent.mkdir(parents=True, exist_ok=True)
     current = exclude.read_text().splitlines() if exclude.is_file() else []
 
     kept: list[str] = []
+    ours: set[str] = set()
     skipping = False
     for line in current:
         if line.strip() == EXCLUDE_BEGIN:
@@ -195,15 +198,21 @@ def sync_git_exclude(repo_root: Path, links: list[dict]) -> None:
         if line.strip() == EXCLUDE_END:
             skipping = False
             continue
-        if not skipping:
+        if skipping:
+            ours.add(line.strip())
+        else:
             kept.append(line)
 
     while kept and not kept[-1].strip():
         kept.pop()
 
-    block = [EXCLUDE_BEGIN] + sorted({f"/{item['link']}" for item in links}) + [EXCLUDE_END]
-    body = kept + ([""] if kept else []) + (block if links else [])
-    exclude.write_text("\n".join(body).rstrip("\n") + "\n")
+    wanted = {f"/{item['link']}" for item in links}
+    if write:
+        block = [EXCLUDE_BEGIN] + sorted(wanted) + [EXCLUDE_END]
+        body = kept + ([""] if kept else []) + (block if links else [])
+        exclude.parent.mkdir(parents=True, exist_ok=True)
+        exclude.write_text("\n".join(body).rstrip("\n") + "\n")
+    return [f"+{line}" for line in sorted(wanted - ours)] + [f"-{line}" for line in sorted(ours - wanted)]
 
 
 # ---------------------------------------------------------------------------
@@ -254,7 +263,14 @@ def _relative_symlink(source: Path, target: Path) -> Path:
     return Path(os.path.relpath(source, target.parent))
 
 
-def apply_overlay(repo_root: Path, overlay: Overlay, applied: list[dict], log) -> list[dict]:
+def apply_overlay(
+    repo_root: Path, overlay: Overlay, applied: list[dict], log, dry_run: bool = False
+) -> list[dict]:
+    """Link the overlay's files in; returns the applied list as it is afterwards.
+
+    A dry run touches nothing, logs only the links that would change, and
+    returns the list a real run would.
+    """
     if not overlay.cloned:
         raise OverlayError(f"{overlay.alias}: not cloned — run 'overlay.py add' first")
 
@@ -292,7 +308,8 @@ def apply_overlay(repo_root: Path, overlay: Overlay, applied: list[dict], log) -
             if not (item["alias"] == holder and item["link"] == rel)
         ]
         others.pop(rel, None)
-        _unlink(repo_root / rel, lambda _msg: None)
+        if not dry_run:
+            _unlink(repo_root / rel, lambda _msg: None)
 
     planned = [
         (source, target)
@@ -300,17 +317,21 @@ def apply_overlay(repo_root: Path, overlay: Overlay, applied: list[dict], log) -
         if str(target.relative_to(repo_root)) not in deferred
     ]
 
-    ops = []
     links = [item for item in applied if item["alias"] != overlay.alias]
+    in_place = 0
     for source, target in planned:
         rel_source = _relative_symlink(source, target)
-        if target.is_symlink():
-            target.unlink()
-        Mkdir(target.parent).apply()
-        op = Symlink(rel_source, target)
-        op.apply()
-        ops.append(op)
-        log(f"LINK  {target.relative_to(repo_root)} -> {rel_source}")
+        if dry_run:
+            if target.is_symlink() and Path(os.readlink(target)) == rel_source:
+                in_place += 1
+            else:
+                log(f"LINK  {target.relative_to(repo_root)} -> {rel_source}")
+        else:
+            if target.is_symlink():
+                target.unlink()
+            Mkdir(target.parent).apply()
+            Symlink(rel_source, target).apply()
+            log(f"LINK  {target.relative_to(repo_root)} -> {rel_source}")
         links.append(
             {
                 "alias": overlay.alias,
@@ -322,8 +343,13 @@ def apply_overlay(repo_root: Path, overlay: Overlay, applied: list[dict], log) -
     # Links the overlay used to provide but no longer does.
     still = {item["link"] for item in links if item["alias"] == overlay.alias}
     for stale in sorted(mine - still):
-        _unlink(repo_root / stale, log)
+        if not dry_run:
+            _unlink(repo_root / stale, log)
+        elif (repo_root / stale).is_symlink():
+            log(f"UNLINK {repo_root / stale}")
 
+    if in_place:
+        log(f"KEEP  {in_place} link(s) of '{overlay.alias}' already in place")
     return links
 
 
@@ -362,14 +388,14 @@ def _git(args: list[str], cwd: Path | None = None) -> str:
     return proc.stdout.strip()
 
 
-def _render(repo_root: Path) -> dict[str, dict | str]:
+def _render(repo_root: Path, write: bool = True) -> dict[str, dict | str]:
     """render_all, with a source that does not parse reported as an OverlayError.
 
     That is a typo in one of the user's own files, so it gets one line naming
     the file rather than a traceback. render_all has written nothing by then.
     """
     try:
-        return render_all(repo_root)
+        return render_all(repo_root, write=write)
     except ValueError as exc:
         raise OverlayError(f"render failed: {exc}") from exc
 
@@ -448,20 +474,33 @@ def cmd_install(repo_root: Path, args, log) -> int:
     else:
         overlays = [o for o in overlays if o.enabled]
 
-    applied = load_applied(repo_root)
+    dry_run = getattr(args, "dry_run", False)
+    before = load_applied(repo_root)
+    applied = before
     for overlay in overlays:
-        applied = apply_overlay(repo_root, overlay, applied, log)
+        applied = apply_overlay(repo_root, overlay, applied, log, dry_run=dry_run)
 
-    save_applied(repo_root, applied)
-    sync_git_exclude(repo_root, applied)
-    for rel, merged in _render(repo_root).items():
-        if merged:
-            log(f"RENDER {rel} (base + {len(enabled_overlays(repo_root))} overlay(s))")
+    if dry_run:
+        for line in sync_git_exclude(repo_root, applied, write=False):
+            log(f"EXCLUDE {line}")
+        moved = {(i["link"], i["source"]) for i in before} ^ {(i["link"], i["source"]) for i in applied}
+        if any(link.startswith("shared/instructions/") for link, _ in moved):
+            log("NOTE  codex/AGENTS.override.md below inlines shared/instructions/ as linked now, before these links change")
+        for line in preview(repo_root, _render(repo_root, write=False)):
+            log(f"RENDER {line}")
+    else:
+        save_applied(repo_root, applied)
+        sync_git_exclude(repo_root, applied)
+        for rel, merged in _render(repo_root).items():
+            if merged:
+                log(f"RENDER {rel} (base + {len(enabled_overlays(repo_root))} overlay(s))")
     # The render just read these, so this is when a machine-only file the
     # overlay's git would pick up is worth saying — before anything commits it.
     for overlay in enabled_overlays(repo_root):
         for rel in unignored_local_files(overlay):
             log(f"WARN {_unignored_hint(overlay, rel)}")
+    if dry_run:
+        log("dry run: nothing was changed; run it again without --dry-run to apply")
     return 0
 
 
@@ -854,6 +893,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     install = sub.add_parser("install", help="apply overlays and re-render settings")
     install.add_argument("alias", nargs="?")
+    install.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="show the links and rendered settings that would change, and change nothing",
+    )
     install.set_defaults(func=cmd_install)
 
     listing = sub.add_parser("list", help="show registered overlays")

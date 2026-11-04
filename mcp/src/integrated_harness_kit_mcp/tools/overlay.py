@@ -63,14 +63,18 @@ def overlay_route(path: str | None = None, repo_path: str | None = None) -> dict
     return {"ok": True, "repo": str(repo_root), "alias": alias, "explain": explained}
 
 
-def overlay_install(alias: str | None = None, repo_path: str | None = None) -> dict:
-    """Apply one overlay (or every enabled one) and re-render."""
+def overlay_install(alias: str | None = None, repo_path: str | None = None, dry_run: bool = False) -> dict:
+    """Apply one overlay (or every enabled one) and re-render.
+
+    dry_run: change nothing; stdout lists the links that would change and,
+             per rendered file, the keys or lines a render would change.
+    """
     repo_root, fail = need_repo(repo_path)
     if fail:
         return fail
     return {
         "repo": str(repo_root),
-        **_script(repo_root, ["install"] + ([alias] if alias else [])),
+        **_script(repo_root, ["install"] + ([alias] if alias else []) + (["--dry-run"] if dry_run else [])),
     }
 
 

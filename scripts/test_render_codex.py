@@ -1114,5 +1114,131 @@ class CodexAgentsTests(FixtureRepo):
         self.assertIn("\n[^1]: Done.\n", text)
 
 
+class DescribeChangeTests(FixtureRepo):
+    def test_keys_added_changed_and_removed(self):
+        self.write(rs.LIVE_REL, json.dumps({"model": "old", "gone": 1, "hooks": {"Stop": [{"hooks": [{"command": "a"}]}]}}))
+        rendered = {"model": "new", "hooks": {"Stop": [{"hooks": [{"command": "a"}, {"command": "b"}]}]}}
+        self.assertEqual(
+            rs.describe_change(self.repo, rs.LIVE_REL, rendered),
+            [
+                '~ model: "old" -> "new"',
+                '+ hooks.Stop[0].hooks[1].command = "b"',
+                "- gone = 1",
+            ],
+        )
+
+    def test_a_current_file_has_no_changes(self):
+        self.write(rs.LIVE_REL, json.dumps({"n": 1.0}))
+        self.assertEqual(rs.describe_change(self.repo, rs.LIVE_REL, {"n": 1}), [])
+
+    def test_secrets_and_odd_keys(self):
+        rendered = {
+            "servers": {"x": {"url": "https://h/mcp", "headers": {"Authorization": "Bearer abc"}, "env": {"K": "v"}}},
+            "enabledPlugins": {"a@b": True},
+            "apiToken": "abc",
+        }
+        lines = rs.describe_change(self.repo, rs.MCP_LIVE_REL, rendered)
+        self.assertIn('+ servers.x.url = "https://h/mcp"', lines)
+        self.assertIn("+ servers.x.headers.Authorization = <hidden>", lines)
+        self.assertIn("+ servers.x.env.K = <hidden>", lines)
+        self.assertIn('+ enabledPlugins["a@b"] = true', lines)
+        self.assertIn("+ apiToken = <hidden>", lines)
+        self.assertFalse(any("abc" in line for line in lines), lines)
+
+    def test_markdown_compares_by_line(self):
+        self.write(rs.MEMORY_LIVE_REL, "- a\n- b\n---\n")
+        self.assertEqual(rs.describe_change(self.repo, rs.MEMORY_LIVE_REL, "- a\n- c\n"), ["-- b", "----", "+- c"])
+
+    def test_a_file_that_does_not_parse(self):
+        self.write(rs.LIVE_REL, "{not json")
+        self.assertEqual(
+            rs.describe_change(self.repo, rs.LIVE_REL, {"model": "m"}),
+            [f"{rs.LIVE_REL} does not parse now; the render would replace it whole"],
+        )
+
+    def test_preview_caps_each_file(self):
+        rendered = {rs.LIVE_REL: {f"k{i}": i for i in range(5)}, rs.MEMORY_LIVE_REL: ""}
+        self.assertEqual(
+            rs.preview(self.repo, rendered, limit=2),
+            [f"{rs.LIVE_REL}: 5 change(s)", "    + k0 = 0", "    + k1 = 1", "    … 3 more"],
+        )
+
+
+class OverlayInstallDryRunTests(FixtureRepo):
+    def setUp(self) -> None:
+        super().setUp()
+        git(self.repo, "init", "-q", "-b", "main")
+        self.write(rs.BASE_REL, json.dumps({"model": "base"}))
+        self.overlay = self.add_overlay(
+            "work",
+            60,
+            {
+                "settings/claude.json": json.dumps({"env": {"API_TOKEN": "s3cret"}}),
+                "skills/tool/SKILL.md": "---\nname: tool\n---\n",
+                "memory/note.md": "note\n",
+            },
+        )
+
+    def install(self, *argv: str) -> list[str]:
+        lines: list[str] = []
+        args = overlay_mod.build_parser().parse_args(["install", *argv])
+        self.assertEqual(overlay_mod.cmd_install(self.repo, args, lines.append), 0)
+        return lines
+
+    def snapshot(self) -> dict[str, str]:
+        out = {}
+        for dirpath, dirnames, filenames in os.walk(self.repo):
+            dirnames[:] = [d for d in dirnames if d != ".git"]
+            for name in dirnames + filenames:
+                path = Path(dirpath) / name
+                rel = str(path.relative_to(self.repo))
+                if path.is_symlink():
+                    out[rel] = "-> " + os.readlink(path)
+                elif path.is_file():
+                    out[rel] = path.read_text()
+                else:
+                    out[rel] = "dir"
+        exclude = self.repo / ".git" / "info" / "exclude"
+        out[".git/info/exclude"] = exclude.read_text() if exclude.is_file() else ""
+        return out
+
+    def test_a_dry_run_changes_nothing_and_says_what_would(self):
+        before = self.snapshot()
+        lines = self.install("--dry-run")
+        self.assertEqual(self.snapshot(), before)
+        self.assertIn("LINK  universal/skills/tool -> ../../overlays/work/skills/tool", lines)
+        self.assertIn("LINK  shared/memory/note.md -> ../../overlays/work/memory/note.md", lines)
+        self.assertIn("EXCLUDE +/universal/skills/tool", lines)
+        self.assertIn("RENDER     + env.API_TOKEN = <hidden>", lines)
+        self.assertFalse(any("s3cret" in line for line in lines), lines)
+        self.assertEqual(lines[-1], "dry run: nothing was changed; run it again without --dry-run to apply")
+
+    def test_after_an_install_there_is_nothing_to_do(self):
+        self.install()
+        lines = self.install("--dry-run")
+        self.assertIn("KEEP  2 link(s) of 'work' already in place", lines)
+        self.assertFalse(any(line.startswith(("LINK", "UNLINK", "EXCLUDE")) for line in lines), lines)
+        self.assertIn(f"RENDER {rs.LIVE_REL}: no change", lines)
+
+    def test_a_dry_run_shows_what_a_render_would_put_back(self):
+        self.install()
+        live = json.loads((self.repo / rs.LIVE_REL).read_text())
+        live["model"] = "picked-in-claude"
+        self.write(rs.LIVE_REL, json.dumps(live))
+        lines = self.install("--dry-run")
+        self.assertIn(f"RENDER {rs.LIVE_REL}: 1 change(s)", lines)
+        self.assertIn('RENDER     ~ model: "picked-in-claude" -> "base"', lines)
+        self.assertEqual(json.loads((self.repo / rs.LIVE_REL).read_text())["model"], "picked-in-claude")
+
+    def test_a_dry_run_shows_links_that_would_go(self):
+        self.install()
+        (self.overlay / "skills" / "tool" / "SKILL.md").unlink()
+        (self.overlay / "skills" / "tool").rmdir()
+        lines = self.install("--dry-run")
+        self.assertIn(f"UNLINK {self.repo / 'universal/skills/tool'}", lines)
+        self.assertIn("EXCLUDE -/universal/skills/tool", lines)
+        self.assertTrue((self.repo / "universal" / "skills" / "tool").is_symlink())
+
+
 if __name__ == "__main__":
     unittest.main()
