@@ -1,41 +1,48 @@
 #!/usr/bin/env bash
-# Claude Code statusLine — single-line catppuccin_mocha powerline
+# Claude Code statusLine — single-line powerline in the starship "duo" palette
 # Segments: user@host · cwd · git · model+flags+effort · ctx · 5h · 7d · time+edits
 set -u
 input=$(cat)
 
-# ── palette (256-color, tmux-safe) ──────────────────────────────────
+# ── palette (256-color) ─────────────────────────────────────────────
+# The starship "duo" palette (~/.config/starship.toml): who = blue,
+# where = sand, tools = mint, when = gray. Each color is the closest
+# xterm-256 index that still keeps sections that meet apart (right column:
+# the duo color); user@host takes the matte 60 over the closer but
+# teal-leaning 24. The ctx / 5h / 7d gauges keep the bar's earlier beige and
+# grade colors. 24-bit color comes out garbled in Claude Code's status bar,
+# even under a tmux that passes RGB through, so the bar stays on 256 colors.
 CRUST_FG=$'\033[38;5;232m'
 LIGHT_FG=$'\033[38;5;255m'                 # cream-white text for dark sections
 ACCENT_FG=$'\033[38;5;215m'                # gold (unused as fg now; kept for completeness)
-# ── Palette (256-color, tmux-safe approximations) ───────────────────
-# Section bg, dark navy → darker navy → teal → mint → beige → pale yellow
-NAVY_BG=$'\033[48;5;17m'         NAVY_FG=$'\033[38;5;17m'         # ≈ #00005f  ≈ #1A3263
-NAVY2_BG=$'\033[48;5;24m'        NAVY2_FG=$'\033[38;5;24m'        # ≈ #005f87  ≈ #205781
-TEAL_HUE_BG=$'\033[48;5;73m'     TEAL_HUE_FG=$'\033[38;5;73m'     # ≈ #5fafaf  ≈ #4F959D
-MINT_BG=$'\033[48;5;151m'        MINT_FG=$'\033[38;5;151m'        # ≈ #afd7af  ≈ #98D2C0
-BEIGE_BG=$'\033[48;5;254m'       BEIGE_FG=$'\033[38;5;254m'       # ≈ #e4e4e4  ≈ #E5E1DA
-PALEYEL_BG=$'\033[48;5;230m'     PALEYEL_FG=$'\033[38;5;230m'     # ≈ #ffffd7  ≈ #F6F8D5
-GOLD_BG=$'\033[48;5;215m'        GOLD_FG=$'\033[38;5;215m'        # ≈ #ffaf5f  ≈ #FFC570 (POINT, bg only)
-MAUVE_BG=$'\033[48;5;141m'       MAUVE_FG=$'\033[38;5;141m'    # ≈ #af87ff catppuccin mauve — active Claude account
+BLUE_BG=$'\033[48;5;60m'         BLUE_FG=$'\033[38;5;60m'         # ≈ #5f5f87  #324e73
+SKY_BG=$'\033[48;5;67m'          SKY_FG=$'\033[38;5;67m'          # ≈ #5f87af  #58769d
+SAND_BG=$'\033[48;5;180m'        SAND_FG=$'\033[38;5;180m'        # ≈ #d7af87  #d2c2a8
+TAUPE_BG=$'\033[48;5;247m'       TAUPE_FG=$'\033[38;5;247m'       # ≈ #9e9e9e  #af9c7c
+MINT_BG=$'\033[48;5;151m'        MINT_FG=$'\033[38;5;151m'        # ≈ #afd7af  #aeceb3
+BEIGE_BG=$'\033[48;5;254m'       BEIGE_FG=$'\033[38;5;254m'       # ≈ #e4e4e4
+GRAY_BG=$'\033[48;5;241m'        GRAY_FG=$'\033[38;5;241m'        # ≈ #626262  #5e646c
+GOLD_BG=$'\033[48;5;215m'        GOLD_FG=$'\033[38;5;215m'        # ≈ #ffaf5f  (POINT, bg only)
+NAVY_FG=$'\033[38;5;17m'                                          # ≈ #00005f  active icon fg
 # Section assignments
-RED_BG=$NAVY_BG          RED_FG=$NAVY_FG              # user@host
-PEACH_BG=$NAVY2_BG       PEACH_FG=$NAVY2_FG           # cwd
-YELLOW_BG=$TEAL_HUE_BG   YELLOW_FG=$TEAL_HUE_FG       # git branch
+RED_BG=$BLUE_BG          RED_FG=$BLUE_FG              # user@host
+MAUVE_BG=$SKY_BG         MAUVE_FG=$SKY_FG             # active Claude account
+PEACH_BG=$SAND_BG        PEACH_FG=$SAND_FG            # cwd
+YELLOW_BG=$TAUPE_BG      YELLOW_FG=$TAUPE_FG          # git branch
 SAPPHIRE_BG=$MINT_BG     SAPPHIRE_FG=$MINT_FG         # model
 GREEN_BG=$BEIGE_BG       GREEN_FG=$BEIGE_FG           # ctx / 5h / 7d grouped
-TEAL_BG=$PALEYEL_BG      TEAL_FG=$PALEYEL_FG          # time + edits
+TEAL_BG=$GRAY_BG         TEAL_FG=$GRAY_FG             # time + edits
 # Gauge fills — filled = grade indicator, empty = section bg slightly darkened.
 GAUGE_EMPTY_CTX=$'\033[48;5;250m'      # #bcbcbc ← darker than beige 254 for better contrast
-GAUGE_EMPTY_MODEL=$'\033[48;5;108m'    # #87af87 ← slightly darker than mint 151
+GAUGE_EMPTY_MODEL=$'\033[48;5;108m'    # #87af87 ← a step darker than mint 151
 LOW_EMPTY_BG=$GAUGE_EMPTY_CTX     LOW_FILLED_BG=$'\033[48;5;109m'    # slate
 MED_EMPTY_BG=$GAUGE_EMPTY_CTX     MED_FILLED_BG=$'\033[48;5;144m'    # dusty olive
-HIGH_EMPTY_BG=$GAUGE_EMPTY_CTX    HIGH_FILLED_BG=$'\033[48;5;215m'   # gold POINT
+HIGH_EMPTY_BG=$GAUGE_EMPTY_CTX    HIGH_FILLED_BG=$GOLD_BG            # gold POINT
 GREEN_EMPTY_BG=$LOW_EMPTY_BG      GREEN_FILLED_BG=$LOW_FILLED_BG
 YELLOW_EMPTY_BG=$MED_EMPTY_BG     YELLOW_FILLED_BG=$MED_FILLED_BG
 RED_EMPTY_BG=$HIGH_EMPTY_BG       RED_FILLED_BG=$HIGH_FILLED_BG
-SAPPHIRE_EMPTY_BG=$GAUGE_EMPTY_MODEL   SAPPHIRE_FILLED_BG=$'\033[48;5;67m'  # effort filled: navy
-# Disabled-icon fg: medium gray; Active-icon fg: deep navy (#1A3263).
+SAPPHIRE_EMPTY_BG=$GAUGE_EMPTY_MODEL   SAPPHIRE_FILLED_BG=$'\033[48;5;67m'  # #5f87af effort filled: blue
+# Disabled-icon fg: medium gray; Active-icon fg: deep navy (#00005f).
 DIM_FG=$'\033[38;5;245m'
 ON_FG=$NAVY_FG
 RESET=$'\033[0m'
@@ -235,16 +242,16 @@ fi
 # ── compose powerline ───────────────────────────────────────────────
 l=""; prev=""
 
-# user@host (dark navy bg → light text)
+# user@host (blue bg → light text)
 l+=$(seg_first "$RED_BG" " ${user}@${host}" "$LIGHT_FG"); prev=$RED_FG
 
-# active Claude account (mauve accent → dark text)
+# active Claude account (lighter blue → dark text)
 if [ -n "$acct_label" ]; then
     l+=$(seg "$MAUVE_BG" "$prev" " 󰀄 ${acct_label}" "$CRUST_FG"); prev=$MAUVE_FG
 fi
 
-# cwd (mid navy bg → light text)
-l+=$(seg "$PEACH_BG" "$prev" " ${cwd_short}" "$LIGHT_FG"); prev=$PEACH_FG
+# cwd (sand bg → dark text)
+l+=$(seg "$PEACH_BG" "$prev" " ${cwd_short}"); prev=$PEACH_FG
 
 # git branch (optional)
 if [ -n "$branch" ]; then
@@ -297,7 +304,7 @@ if [ -n "$r7_int" ]; then
     prev_was_grade=true
 fi
 
-# duration + edits (teal)
+# duration + edits (gray bg → light text)
 dur_str=""
 edit_str=""
 if [ -n "$dur" ] && [ "$dur" -gt 0 ]; then
@@ -313,7 +320,7 @@ else
     extras="${dur_str}${edit_str}"
 fi
 if [ -n "$extras" ]; then
-    l+=$(seg "$TEAL_BG" "$prev" "$extras"); prev=$TEAL_FG
+    l+=$(seg "$TEAL_BG" "$prev" "$extras" "$LIGHT_FG"); prev=$TEAL_FG
 fi
 
 l+=$(seg_close "$prev")
