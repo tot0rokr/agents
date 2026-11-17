@@ -11,7 +11,7 @@ Container rules:
 - Image: reuse a fitting local image or a small official base. Test-only builds get their own tag (`<name>-test`); never retag or overwrite images the user runs.
 - Mounts: the code under test read-only (or a copy in the scratchpad), plus one scratch output dir. Never mount the real HOME, `~/.claude`, `~/.ssh`, `~/.config`, credential files, `docker.sock`, or X11 sockets.
 - Environment: a fresh HOME inside the container and only the variables the test needs. Don't pass DISPLAY, TMUX*, SSH_AUTH_SOCK, session variables (CLAUDE*, RH_*), or tokens.
-- Network: `--network none` by default. Open it only when the test needs it, prefer a stub service inside the container over real hosts, and never push, publish or log in from a test.
+- Network: `--network none` by default. Open it only when the test needs it, prefer a stub service inside the container over real hosts, and never push, publish or log in from a test. A test that needs its own Docker network takes its subnet from the machine's subnet rule when an overlay supplies one ([[feedback_docker_subnet_explicit]]); never let Docker pick from its default pool.
 - Privileges: run as a non-root user (`--user $(id -u):$(id -g)` or the image's user). No `--privileged`; add a capability or seccomp exception only when the program under test requires it, and say which and why.
 - Lifecycle: `--rm`, a recognizable name or label (`claude-test-<topic>`), and `--memory`/`--cpus` limits for heavy runs. Remove every container, volume and network you created when done. Never stop, exec into or modify containers you did not create.
 
