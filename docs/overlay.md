@@ -72,7 +72,7 @@ So the file is split:
 - `claude/settings.json` — build artifact, gitignored
 - `scripts/render_settings.py` — produces the artifact
 
-Render order is base, then each enabled overlay by ascending priority, then a final pass that carries over every key the live file has but no source manages. That last pass is what keeps runtime-written state working while leaving it untracked forever.
+Render order is base, then each enabled overlay by ascending priority, then a final pass that carries over every key the live file has but no source manages, and every hook no source has (see [What an overlay can and cannot overwrite](#what-an-overlay-can-and-cannot-overwrite)). That last pass is what keeps runtime-written state working while leaving it untracked forever.
 
 `LOCAL_ONLY_KEYS` in `render_settings.py` lists keys that must never appear in the tracked base. `render_settings.py --check` fails if one does, and `doctor.sh` runs that check.
 
@@ -263,7 +263,7 @@ Claude Code expands `${VAR}` itself when it starts a server. Codex does not: it 
 
 ## What an overlay can and cannot overwrite
 
-Applying an overlay never deletes a setting that no source claims — `test/qa_interference.py` walks twelve before-and-after scenarios and none of them loses data. Three behaviours do surprise people, though, and they are deliberate:
+Applying an overlay never deletes a setting that no source claims — `test/qa_interference.py` walks thirteen before-and-after scenarios and none of them loses data. Three behaviours do surprise people, though, and they are deliberate:
 
 A list is replaced, not appended to — unless the key says otherwise. If the base defines `hooks.Stop` and an overlay defines `hooks.Stop`, the overlay's list is what survives; sibling events like `hooks.PreCompact` are untouched. To add to a list rather than own it, write the key with a trailing `+`:
 
@@ -272,6 +272,8 @@ A list is replaced, not appended to — unless the key says otherwise. If the ba
 ```
 
 That appends to whatever `hooks.Stop` holds so far and leaves the key named `Stop`. Several sources may append to the same list; they land in source order, which is priority order. Objects always merge key by key, with or without the marker.
+
+Hooks in the live file are merged, not replaced. Tools add hooks to `settings.json` themselves: claude-auto's `install.sh` appends its own to `PostToolUse` and `UserPromptSubmit`, events the base uses too, so replacing those lists dropped them on every render. Within each event the render writes the sources' hooks first, then every hook of the live file whose command no source has for that event, in the group it came in, matcher included. A hook a source has is written as the source has it, so the source's timeout or matcher wins. The exception is a hook that runs a script from the harness's own `claude/hooks/` (`$HOME/.claude/hooks/…`). Only a source registers those, so one no source has is left over from before a source renamed or dropped it, and the render drops it. Any other hook a source drops stays in the live file, since nothing tells it from one a tool added. Each render lists on stderr the hooks it kept that way and the ones it dropped; delete a stale one from `claude/settings.json` by hand.
 
 The marker exists in JSON fragments only. In a TOML fragment (`settings/codex.toml`, `settings/codex.local.toml`) every key is taken as written, because Codex keys are paths and names: `[projects."${CLAUDE_HOME}/c++"]` trusts `c++`, not an append to `c+`. A list a TOML fragment sets replaces the one before it.
 

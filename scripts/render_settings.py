@@ -547,10 +547,101 @@ def _write_private(repo_root: Path, rel: str, rendered: dict, text: str) -> None
         _write_atomic(path, text, PRIVATE_MODE)
 
 
+# A hook that runs a script from the harness's own claude/hooks/ (reached as
+# ~/.claude/hooks/ through the home link) is one only a source registers.
+_HARNESS_HOOK = re.compile(r"(?:^|[^A-Za-z0-9_.-])\.claude/hooks/")
+_SHOWN_HOOK = 110
+
+
+def _hook_key(hook: Any) -> str:
+    """What tells two handlers of one event apart: the command they run."""
+    if isinstance(hook, dict):
+        for field in ("command", "prompt", "url"):
+            if isinstance(hook.get(field), str):
+                return f"{hook.get('type', 'command')}:{hook[field]}"
+    return json.dumps(hook, sort_keys=True)
+
+
+def _runs_harness_script(hook: Any, repo_root: Path) -> bool:
+    command = hook.get("command") if isinstance(hook, dict) else None
+    if not isinstance(command, str):
+        return False
+    return bool(_HARNESS_HOOK.search(command)) or f"{repo_root / 'claude' / 'hooks'}/" in command
+
+
+def _hook_text(event: str, group: dict, hook: Any) -> str:
+    matcher = group.get("matcher")
+    what = hook.get("command") if isinstance(hook, dict) else None
+    text = f"{event}{f' [{matcher}]' if matcher else ''}: {what if isinstance(what, str) else _hook_key(hook)}"
+    return text if len(text) <= _SHOWN_HOOK else text[: _SHOWN_HOOK - 1] + "…"
+
+
+def keep_live_hooks(source: dict, live: dict, repo_root: Path) -> tuple[dict, list[str], list[str]]:
+    """The hooks to render: every source hook, then each live one no source has.
+
+    Hook lists are lists, so the key-level carry-over of `preserve_unmanaged`
+    replaced an event's whole list with the sources' one, and a hook a tool
+    such as claude-auto added to an event the base also uses went with every
+    render. Here a live handler whose command no source has for that event is
+    kept, after the sources' handlers and in the group it came in, matcher and
+    all. One a source has is written as the source has it, so its timeout or
+    matcher wins.
+
+    The exception is a handler running a script from the harness's own
+    claude/hooks/. Only a source registers those, so one no source has is left
+    over from before a source renamed or dropped it, and it goes. Any other
+    handler a source dropped stays, since nothing tells it from one a tool
+    added; the caller lists those so a stale one can be deleted by hand.
+
+    Returns the hooks, then the kept and the dropped handlers, described.
+    """
+    out: dict = {}
+    kept: list[str] = []
+    gone: list[str] = []
+    for event in [*source, *(e for e in live if e not in source)]:
+        theirs, mine = source.get(event), live.get(event)
+        if event in source and not isinstance(theirs, list):
+            out[event] = theirs
+            continue
+        if not isinstance(mine, list):
+            if event in source:
+                out[event] = theirs
+            elif mine is not None:
+                out[event] = mine  # not a list of groups; left as it was
+            continue
+        groups = list(theirs or [])
+        known = {
+            _hook_key(hook)
+            for group in groups
+            if isinstance(group, dict) and isinstance(group.get("hooks"), list)
+            for hook in group["hooks"]
+        }
+        for group in mine:
+            if not isinstance(group, dict) or not isinstance(group.get("hooks"), list):
+                if group not in groups:
+                    groups.append(group)
+                continue
+            extra = []
+            for hook in group["hooks"]:
+                if _hook_key(hook) in known:
+                    continue
+                if _runs_harness_script(hook, repo_root):
+                    gone.append(_hook_text(event, group, hook))
+                    continue
+                extra.append(hook)
+                kept.append(_hook_text(event, group, hook))
+            if extra:
+                groups.append({**group, "hooks": extra})
+        if groups or event in source:
+            out[event] = groups
+    return out, kept, gone
+
+
 def render(
     repo_root: Path,
     fragments: list[dict] | None = None,
     write: bool = True,
+    quiet: bool = False,
 ) -> dict:
     base_path = repo_root / BASE_REL
     live_path = repo_root / LIVE_REL
@@ -569,8 +660,19 @@ def render(
 
     managed = key_paths(merged)
     if live_path.is_file():
+        live = load_json(live_path)
+        sources_hook = "hooks" in merged
+        source_hooks = merged.get("hooks", {})
         dropped = _load_state(repo_root) - managed
-        merged = preserve_unmanaged(load_json(live_path), merged, frozenset(dropped), atomic=CLAUDE_ATOMIC)
+        merged = preserve_unmanaged(live, merged, frozenset(dropped), atomic=CLAUDE_ATOMIC)
+        if isinstance(live.get("hooks"), dict) and isinstance(source_hooks, dict):
+            hooks, kept, gone = keep_live_hooks(source_hooks, live["hooks"], repo_root)
+            if hooks or sources_hook:
+                merged["hooks"] = hooks
+            else:
+                merged.pop("hooks", None)
+            if not quiet:
+                _hook_notes(kept, gone)
 
     if write:
         if not artifact_current(repo_root, LIVE_REL, merged):
@@ -767,6 +869,25 @@ def _warn(message: str) -> None:
 
 def _silent(message: str) -> None:
     """A warning a previous pass of the same render has already printed."""
+
+
+def _hook_notes(kept: list[str], gone: list[str]) -> None:
+    """Say which hooks the render kept or dropped on its own judgment."""
+    if kept:
+        print(
+            f"note: {LIVE_REL} keeps {len(kept)} hook(s) no source defines. A tool added them, "
+            "or a source dropped them; delete a stale one from the live file by hand:",
+            file=sys.stderr,
+        )
+        for line in kept:
+            print(f"  {line}", file=sys.stderr)
+    if gone:
+        print(
+            f"note: {LIVE_REL} drops {len(gone)} hook(s) running a harness script no source registers any more:",
+            file=sys.stderr,
+        )
+        for line in gone:
+            print(f"  {line}", file=sys.stderr)
 
 
 def check_codex_base(base: dict) -> list[str]:
@@ -1255,7 +1376,7 @@ def render_all(repo_root: Path, write: bool = True) -> dict[str, dict | str]:
 def _render_each(repo_root: Path, write: bool, quiet: bool = False) -> dict[str, dict | str]:
     servers = render_mcp(repo_root, write=write)
     return {
-        LIVE_REL: render(repo_root, write=write),
+        LIVE_REL: render(repo_root, write=write, quiet=quiet),
         MCP_LIVE_REL: servers,
         MEMORY_LIVE_REL: render_memory(repo_root, write=write),
         CODEX_LIVE_REL: render_codex(repo_root, servers=servers, write=write, quiet=quiet),

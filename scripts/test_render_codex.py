@@ -1114,6 +1114,108 @@ class CodexAgentsTests(FixtureRepo):
         self.assertIn("\n[^1]: Done.\n", text)
 
 
+HARNESS = 'bash "$HOME/.claude/hooks/tmux-pending.sh"'
+
+
+def group(*commands: str, **fields) -> dict:
+    return {**fields, "hooks": [{"type": "command", "command": command} for command in commands]}
+
+
+class ClaudeHookMergeTests(FixtureRepo):
+    """A hook a tool added to the live file outlives renders; a stale harness hook does not."""
+
+    def base(self, hooks: dict) -> None:
+        self.write(rs.BASE_REL, json.dumps({"model": "base", "hooks": hooks}))
+
+    def live_file(self, hooks: dict) -> None:
+        self.write(rs.LIVE_REL, json.dumps({"model": "base", "hooks": hooks}))
+
+    def hooks(self) -> dict:
+        return json.loads((self.repo / rs.LIVE_REL).read_text())["hooks"]
+
+    def render(self) -> str:
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            rs.render(self.repo)
+        return err.getvalue()
+
+    def test_a_hook_a_tool_added_to_a_base_event_stays_and_renders_stay_put(self):
+        self.base({"PostToolUse": [group("base-check")]})
+        self.live_file({"PostToolUse": [group("base-check"), group("tool-note", matcher="Artifact")]})
+        notes = self.render()
+        self.assertEqual(self.hooks()["PostToolUse"], [group("base-check"), group("tool-note", matcher="Artifact")])
+        self.assertIn("keeps 1 hook(s)", notes)
+        self.assertIn("PostToolUse [Artifact]: tool-note", notes)
+        first = (self.repo / rs.LIVE_REL).read_text()
+        self.render()
+        self.assertEqual((self.repo / rs.LIVE_REL).read_text(), first)
+
+    def test_the_source_version_wins_and_is_not_repeated(self):
+        self.base({"Stop": [{"hooks": [{"type": "command", "command": "base-stop", "timeout": 20}]}]})
+        self.live_file({"Stop": [{"hooks": [
+            {"type": "command", "command": "base-stop", "timeout": 5},
+            {"type": "command", "command": "tool-stop"},
+        ]}]})
+        self.render()
+        self.assertEqual(
+            self.hooks()["Stop"],
+            [{"hooks": [{"type": "command", "command": "base-stop", "timeout": 20}]}, group("tool-stop")],
+        )
+
+    def test_a_harness_hook_no_source_has_goes(self):
+        self.base({"Stop": [group(f"{HARNESS} stop")]})
+        self.live_file({
+            "Stop": [group(f"{HARNESS} set", f"{HARNESS} stop")],
+            "SessionEnd": [group(f"{HARNESS} clear")],
+        })
+        notes = self.render()
+        self.assertEqual(self.hooks(), {"Stop": [group(f"{HARNESS} stop")]})
+        self.assertIn("drops 2 hook(s)", notes)
+
+    def test_a_hook_by_the_repo_path_is_a_harness_hook_too(self):
+        script = f"{self.repo / 'claude' / 'hooks' / 'old.sh'}"
+        self.base({"Stop": [group("base-stop")]})
+        self.live_file({"Stop": [group("base-stop", f"bash {script}")]})
+        self.render()
+        self.assertEqual(self.hooks()["Stop"], [group("base-stop")])
+
+    def test_a_non_harness_hook_a_source_dropped_stays_and_is_named(self):
+        self.base({"Stop": [group(f"{HARNESS} stop")]})
+        self.live_file({"Stop": [group(f"{HARNESS} stop"), group("bash /opt/relay.sh Stop")]})
+        notes = self.render()
+        self.assertEqual(self.hooks()["Stop"], [group(f"{HARNESS} stop"), group("bash /opt/relay.sh Stop")])
+        self.assertIn("Stop: bash /opt/relay.sh Stop", notes)
+
+    def test_an_event_a_source_stopped_using_keeps_the_tool_hooks(self):
+        self.base({"Stop": [group("base-stop")], "PreToolUse": [group(f"{HARNESS} pre")]})
+        self.live_file({"Stop": [group("base-stop")], "PreToolUse": [group(f"{HARNESS} pre")]})
+        self.render()
+        self.base({"Stop": [group("base-stop")]})
+        self.live_file({
+            "Stop": [group("base-stop")],
+            "PreToolUse": [group(f"{HARNESS} pre"), group("tool-gate", matcher="Artifact")],
+        })
+        self.render()
+        self.assertEqual(
+            self.hooks(), {"Stop": [group("base-stop")], "PreToolUse": [group("tool-gate", matcher="Artifact")]}
+        )
+
+    def test_an_overlay_append_and_a_tool_hook_both_land(self):
+        self.base({"Stop": [group("base-stop")]})
+        self.add_overlay("work", 60, {"settings/claude.json": json.dumps({"hooks": {"Stop+": [group("overlay-stop")]}})})
+        self.live_file({"Stop": [group("base-stop"), group("tool-stop")]})
+        self.render()
+        self.assertEqual(self.hooks()["Stop"], [group("base-stop"), group("overlay-stop"), group("tool-stop")])
+
+    def test_the_quiet_pass_says_nothing(self):
+        self.base({"Stop": [group("base-stop")]})
+        self.live_file({"Stop": [group("base-stop"), group("tool-stop")]})
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            rs.render(self.repo, quiet=True)
+        self.assertEqual(err.getvalue(), "")
+
+
 class DescribeChangeTests(FixtureRepo):
     def test_keys_added_changed_and_removed(self):
         self.write(rs.LIVE_REL, json.dumps({"model": "old", "gone": 1, "hooks": {"Stop": [{"hooks": [{"command": "a"}]}]}}))

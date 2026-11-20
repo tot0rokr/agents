@@ -76,6 +76,14 @@ def live() -> dict:
     return json.loads((REPO / "claude" / "settings.json").read_text())
 
 
+def hook_group(*commands: str) -> dict:
+    return {"hooks": [{"type": "command", "command": command} for command in commands]}
+
+
+def hook_commands(groups: list) -> list[str]:
+    return [hook.get("command") for group in groups for hook in group.get("hooks", [])]
+
+
 def main() -> int:
     shutil.rmtree(ORIGINS, ignore_errors=True)
     ORIGINS.mkdir(parents=True)
@@ -105,15 +113,16 @@ def main() -> int:
            f"model={live().get('model')}, theme kept={live().get('theme')}")
 
     print("\n== 3. an overlay that defines a list the base also defines")
-    fresh_repo({"hooks": {"Stop": [{"id": "base-stop"}], "PreCompact": [{"id": "base-pre"}]}})
-    make_overlay("hooky", 60, settings={"hooks": {"Stop": [{"id": "overlay-stop"}]}})
+    fresh_repo({"hooks": {"Stop": [hook_group('bash "$HOME/.claude/hooks/base-stop.sh"')],
+                          "PreCompact": [hook_group('bash "$HOME/.claude/hooks/base-pre.sh"')]}})
+    make_overlay("hooky", 60, settings={"hooks": {"Stop": [hook_group("overlay-stop")]}})
     overlay_cli("add", "hooky", str(ORIGINS / "hooky"), "--priority", "60")
     overlay_cli("install", "hooky")
     hooks = live()["hooks"]
-    stop_ids = [h.get("id") for h in hooks.get("Stop", [])]
-    record("by design" if "base-stop" not in stop_ids else "PASS",
-           "a list is replaced, not concatenated",
-           f"Stop={stop_ids}; sibling event kept={[h.get('id') for h in hooks.get('PreCompact', [])]}")
+    stop = hook_commands(hooks.get("Stop", []))
+    record("by design" if stop == ["overlay-stop"] else "LOSS",
+           "a list is replaced, not concatenated; the base's harness hook left in the live file goes too",
+           f"Stop={stop}; sibling event kept={hook_commands(hooks.get('PreCompact', []))}")
 
     print("\n== 4. a key Claude Code wrote at runtime")
     fresh_repo({"model": "base-model"})
@@ -300,6 +309,21 @@ def main() -> int:
            "a plugin Claude Code enabled outlives the overlay's table", str(plugins))
     record("PASS" if "from-overlay@market" not in plugins else "LOSS",
            "the overlay's own plugin goes with the overlay", str(plugins))
+
+    print("\n== 13. a hook a tool added to an event the base also uses")
+    fresh_repo({"hooks": {"PostToolUse": [hook_group('bash "$HOME/.claude/hooks/base-post.sh"')]}})
+    current = live()
+    # What claude-auto's install.sh does: append a group of its own to the event.
+    current["hooks"]["PostToolUse"].append({"matcher": "Artifact", **hook_group("tool-note")})
+    (REPO / "claude" / "settings.json").write_text(json.dumps(current, indent=2) + "\n")
+    make_overlay("later", 60, settings={"newKey": 1})
+    overlay_cli("add", "later", str(ORIGINS / "later"), "--priority", "60")
+    overlay_cli("install", "later")
+    post = live()["hooks"]["PostToolUse"]
+    record("PASS" if hook_commands(post) == ['bash "$HOME/.claude/hooks/base-post.sh"', "tool-note"] else "LOSS",
+           "the tool's hook outlives the next render, after the base's", f"PostToolUse={hook_commands(post)}")
+    record("PASS" if any(g.get("matcher") == "Artifact" for g in post) else "LOSS",
+           "it keeps its own matcher", str([g.get("matcher") for g in post]))
 
     print(f"\n{sum(1 for v, _, _ in FINDINGS if v == 'PASS')} pass, "
           f"{sum(1 for v, _, _ in FINDINGS if v == 'by design')} by design, "
