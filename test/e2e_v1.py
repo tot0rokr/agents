@@ -140,7 +140,7 @@ def main() -> int:
     caps = status_mod.capabilities(repo_path=str(REPO))
     check("overlays supported", caps["overlays"])
     check("render_settings available", caps["render_settings"])
-    check("version is 1.1.0", caps["package_version"] == "1.1.0", caps["package_version"])
+    check("version is 1.2.0", caps["package_version"] == "1.2.0", caps["package_version"])
 
     section("3. add a private overlay")
     build_overlay_origin()
