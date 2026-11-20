@@ -90,8 +90,8 @@ point at this repo are skipped.
 |---|---|
 | `shared/AGENTS.md` | All 4 tools (via their instruction-file symlinks; Codex via the rendered `codex/AGENTS.override.md`). |
 | `shared/instructions/*.md` | Linked from AGENTS.md. Only Codex gets them as instructions: `render_settings.py` inlines them into `codex/AGENTS.override.md`. Claude Code loads `@path` imports, not plain links, so it sees the link line and reads the file only when the agent opens it; see BACKLOG. |
-| `shared/memory/<name>.md` | Listed in the index; all 4 see it. |
-| `shared/memory/MEMORY.base.md` | The tracked index. Rendered into `MEMORY.md`, which AGENTS.md references. |
+| `shared/memory/<name>.md` | A memory that holds in every project. Listed in the index; agents open it when its line is relevant. |
+| `shared/memory/MEMORY.base.md` | The tracked index. Rendered into `MEMORY.md`, which AGENTS.md imports (`@memory/MEMORY.md`) so Claude Code loads it in every session; Codex gets it inlined into `codex/AGENTS.override.md`. A memory for one project goes in that project's own memory instead. |
 | `universal/skills/<name>/SKILL.md` | All 4 tools (Codex/OpenCode/Gemini via `~/.agents/skills`, Claude via `~/.claude/skills` symlink). |
 | `shared/subagents/<name>.md` | Claude and OpenCode directly. Codex/Gemini need their own format. |
 | `shared/commands/<name>.md` | Claude, Codex (`~/.codex/prompts/`), OpenCode directly. Run `render-gemini-commands.sh` to push to Gemini. |

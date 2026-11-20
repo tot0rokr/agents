@@ -69,10 +69,8 @@ class TestFreshInstall(InstallTestBase):
             self.assertTrue(target.is_symlink(), f"{target} should be a symlink")
             self.assertEqual(link_target(target), (self.repo / r_rel).resolve())
 
-        cwd_slug = str(self.home.resolve()).replace("/", "-")
-        mem_link = self.home / ".claude" / "projects" / cwd_slug / "memory"
-        self.assertTrue(mem_link.is_symlink())
-        self.assertEqual(link_target(mem_link), (self.repo / "shared/memory").resolve())
+        # No project's memory is linked to the shared pool.
+        self.assertFalse((self.repo / "claude" / "projects").exists())
 
         self.assertEqual(list(self.home.glob(".claude.bak.*")), [])
         self.assertFalse(result.rolled_back)
@@ -214,107 +212,79 @@ class TestReconcileGuide(InstallTestBase):
         self.assertIsNone(result.reconcile_report)
 
 
-class TestPhase2SlugDiscovery(InstallTestBase):
-    def test_slug_from_backup_is_linked(self):
-        mem_dir = self.home / ".claude" / "projects" / "-other-slug" / "memory"
-        mem_dir.mkdir(parents=True)
-        (mem_dir / "foo.md").write_text("project memory")
+class TestPhase2ProjectMemory(InstallTestBase):
+    """A project's memory moves with the old ~/.claude to the same project, never to the shared pool."""
 
-        install(home=self.home, repo_root=self.repo)
-
-        new_mem = self.home / ".claude" / "projects" / "-other-slug" / "memory"
-        self.assertTrue(new_mem.is_symlink())
-        self.assertEqual(
-            link_target(new_mem), (self.repo / "shared/memory").resolve()
-        )
-        self.assertEqual(
-            (self.repo / "shared/memory" / "foo.md").read_text(), "project memory"
-        )
-
-
-class TestProjectSlug(unittest.TestCase):
-    def test_every_non_alphanumeric_character_becomes_a_dash(self):
-        self.assertEqual(install_mod.project_slug(Path("/home/a.b/x_y")), "-home-a-b-x-y")
-        self.assertEqual(install_mod.project_slug(Path("/home/a/.dotfiles")), "-home-a--dotfiles")
-
-
-class TestPhase2ExistingMemoryDir(InstallTestBase):
-    """Re-running the installer from a project whose memory/ Claude Code made since."""
-
-    def setUp(self) -> None:
-        super().setUp()
-        # Already installed: ~/.claude is the repo's claude/.
-        (self.home / ".claude").symlink_to(self.repo.resolve() / "claude")
-        project = self.home / "my.project"
-        project.mkdir()
-        os.chdir(project)
-        self.slug = install_mod.project_slug(Path.cwd())
-        self.mem = self.repo / "claude" / "projects" / self.slug / "memory"
-        self.mem.mkdir(parents=True)
-        (self.mem / "MEMORY.md").write_text("- [note](note.md) — project\n")
-        (self.mem / "note.md").write_text("project memory")
-        (self.mem / "same.md").write_text("project text")
-        self.shared = self.repo / "shared" / "memory"
-        (self.shared / "MEMORY.md").write_text("- [base](base.md) — public\n")
-        (self.shared / "same.md").write_text("shared text")
-
-    def test_its_memories_join_the_pool_before_it_is_moved_aside(self):
-        result = install(home=self.home, repo_root=self.repo)
-
-        self.assertTrue(self.mem.is_symlink())
-        self.assertEqual(link_target(self.mem), self.shared.resolve())
-        self.assertEqual((self.shared / "note.md").read_text(), "project memory")
-        self.assertEqual(
-            (self.shared / "MEMORY.md").read_text(),
-            "- [base](base.md) — public\n- [note](note.md) — project\n",
-        )
-        self.assertEqual((self.shared / "same.md").read_text(), "shared text")
-        backups = list(self.mem.parent.glob("memory.bak.*"))
-        self.assertEqual(len(backups), 1)
-        self.assertEqual((backups[0] / "same.md").read_text(), "project text")
-        self.assertTrue(any("same.md" in msg and "differs" in msg for msg in result.skipped), result.skipped)
-
-    def test_the_dry_run_shows_the_merge(self):
-        lines: list[str] = []
-        install(home=self.home, repo_root=self.repo, dry_run=True, log=lines.append)
-
-        text = "\n".join(lines)
-        self.assertIn("merge-missing", text)
-        self.assertIn("merge-index", text)
-        self.assertIn(f"{self.slug}/memory.bak.", text)
-        self.assertFalse(self.mem.is_symlink())
-        self.assertFalse((self.shared / "note.md").exists())
-
-    def test_a_failure_puts_everything_back(self):
-        original = Symlink.apply
-
-        def fail_on_memory_link(op):
-            if op.target.name == "memory":
-                raise RuntimeError("injected failure")
-            original(op)
-
-        Symlink.apply = fail_on_memory_link
-        with self.assertRaises(RuntimeError):
-            install(home=self.home, repo_root=self.repo)
-
-        self.assertEqual((self.shared / "MEMORY.md").read_text(), "- [base](base.md) — public\n")
-        self.assertFalse((self.shared / "note.md").exists())
-        self.assertFalse(self.mem.is_symlink())
-        self.assertEqual((self.mem / "note.md").read_text(), "project memory")
-
-
-class TestPhase2BackupIndex(InstallTestBase):
-    def test_the_backed_up_index_lines_reach_the_pool(self):
-        mem = self.home / ".claude" / "projects" / "-old-slug" / "memory"
+    def old_memory(self, project: str = "-old-project") -> Path:
+        mem = self.home / ".claude" / "projects" / project / "memory"
         mem.mkdir(parents=True)
         (mem / "MEMORY.md").write_text("- [old](old.md) — from the old home\n")
         (mem / "old.md").write_text("old memory")
-        (self.repo / "shared" / "memory" / "MEMORY.md").write_text("- [base](base.md) — public\n")
+        return mem
+
+    def test_it_lands_in_the_same_project_and_not_in_the_pool(self):
+        self.old_memory()
 
         install(home=self.home, repo_root=self.repo)
 
-        self.assertIn("- [old](old.md) — from the old home", (self.repo / "shared/memory/MEMORY.md").read_text())
-        self.assertEqual((self.repo / "shared/memory/old.md").read_text(), "old memory")
+        mem = self.repo / "claude" / "projects" / "-old-project" / "memory"
+        self.assertFalse(mem.is_symlink())
+        self.assertEqual((mem / "old.md").read_text(), "old memory")
+        self.assertEqual((mem / "MEMORY.md").read_text(), "- [old](old.md) — from the old home\n")
+        self.assertFalse((self.repo / "shared" / "memory" / "old.md").exists())
+
+    def test_it_merges_into_a_memory_the_repo_already_has(self):
+        self.old_memory()
+        mem = self.repo / "claude" / "projects" / "-old-project" / "memory"
+        mem.mkdir(parents=True)
+        (mem / "MEMORY.md").write_text("- [new](new.md) — made here\n")
+        (mem / "old.md").write_text("changed here")
+
+        result = install(home=self.home, repo_root=self.repo)
+
+        self.assertEqual(
+            (mem / "MEMORY.md").read_text(),
+            "- [new](new.md) — made here\n- [old](old.md) — from the old home\n",
+        )
+        self.assertEqual((mem / "old.md").read_text(), "changed here")
+        self.assertTrue(any("old.md" in msg and "differs" in msg for msg in result.skipped), result.skipped)
+
+    def test_a_rerun_links_no_project_to_the_pool(self):
+        (self.home / ".claude").symlink_to(self.repo.resolve() / "claude")
+        mem = self.repo / "claude" / "projects" / "-some-project" / "memory"
+        mem.mkdir(parents=True)
+        (mem / "note.md").write_text("project memory")
+
+        lines: list[str] = []
+        install(home=self.home, repo_root=self.repo, log=lines.append)
+
+        self.assertFalse(mem.is_symlink())
+        self.assertEqual((mem / "note.md").read_text(), "project memory")
+        self.assertFalse(list((self.repo / "claude").glob("projects/*/memory.bak.*")))
+        self.assertFalse(any("shared/memory" in line for line in lines), lines)
+
+    def test_a_failure_puts_the_merged_index_back(self):
+        self.old_memory()
+        (self.home / ".claude" / "history.jsonl").write_text("{}\n")
+        mem = self.repo / "claude" / "projects" / "-old-project" / "memory"
+        mem.mkdir(parents=True)
+        (mem / "MEMORY.md").write_text("- [new](new.md) — made here\n")
+
+        original = install_mod.ConcatFile.apply
+
+        def fail(op):
+            raise RuntimeError("injected failure")
+
+        install_mod.ConcatFile.apply = fail
+        try:
+            with self.assertRaises(RuntimeError):
+                install(home=self.home, repo_root=self.repo)
+        finally:
+            install_mod.ConcatFile.apply = original
+
+        self.assertEqual((mem / "MEMORY.md").read_text(), "- [new](new.md) — made here\n")
+        self.assertFalse((mem / "old.md").exists())
+        self.assertTrue((self.home / ".claude" / "projects" / "-old-project" / "memory" / "old.md").is_file())
 
 
 class TestRollback(InstallTestBase):
@@ -390,8 +360,8 @@ class TestDryRun(InstallTestBase):
 
         text = "\n".join(lines)
         repo = self.repo.resolve()
-        self.assertIn(f"merge-missing {mem.resolve()}/* -> {repo / 'shared/memory'}/", text)
-        self.assertIn(f"ln -s {repo / 'shared/memory'} {repo / 'claude/projects/-old-slug/memory'}", text)
+        self.assertIn(f"merge-missing {mem.resolve()}/* -> {repo / 'claude/projects/-old-slug/memory'}/", text)
+        self.assertNotIn("shared/memory", text)
         self.assertIn(f"concat {self.home.resolve() / '.claude/history.jsonl'} + {repo / 'claude/history.jsonl'}", text)
         self.assertFalse((self.repo / "claude" / "projects").exists())
         self.assertFalse((self.repo / "shared" / "memory" / "note.md").exists())

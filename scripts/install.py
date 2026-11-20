@@ -12,7 +12,7 @@ After running, each CLI agent reads its config from this repo:
 Three phases run in order:
 
     Phase 1  top-level home symlinks (existing real dirs backed up to .bak)
-    Phase 2  Claude per-project memory unification into shared/memory
+    Phase 2  Claude per-project memory carried over from the fresh ~/.claude backup
     Phase 3  runtime data restore from the fresh ~/.claude backup
 
 Every mutating operation is recorded; if any phase raises, the recorded
@@ -44,22 +44,8 @@ LINK_PATHS = [
     (".agents", "universal"),
 ]
 
-# Codex/OpenCode/Gemini settle their own paths; only Claude has the
-# per-project memory channel that we want to unify.
+# Claude Code keeps each project's memory under ~/.claude/projects/<project>/.
 MEMORY_PARENT = "projects"  # under ~/.claude
-SHARED_MEMORY_REL = "shared/memory"
-
-_NOT_SLUG = re.compile(r"[^A-Za-z0-9]")
-
-
-def project_slug(path: Path) -> str:
-    """The name Claude Code gives a directory's project under ~/.claude/projects.
-
-    Every character other than an ASCII letter or digit becomes `-`, so
-    `/home/a.b/x_y` is `-home-a-b-x-y`. Replacing only `/` names a directory
-    Claude Code never reads wherever the path has a dot or an underscore.
-    """
-    return _NOT_SLUG.sub("-", str(path))
 
 # Claude Code reads some options (leftArrowOpensAgents, for one) only from
 # ~/.claude.json, never from settings.json, so they cannot live in the base.
@@ -375,7 +361,6 @@ class Installer:
         self.log = log or (lambda msg: print(msg))
         self.ts = datetime.now().strftime("%Y%m%d-%H%M%S")
         self.result = InstallResult()
-        self.shared_memory = self.repo_root / SHARED_MEMORY_REL
 
     # ---- public entry point ----
 
@@ -486,71 +471,51 @@ class Installer:
         """~/.claude as it is after Phase 1: a link to the repo's claude/."""
         return self.repo_root / "claude" if self.dry_run else self.home / ".claude"
 
-    # ---- phase 2: memory unification ----
+    # ---- phase 2: per-project memory ----
 
     def _phase2_memory(self) -> None:
+        """Carry each project's memory from the moved-aside ~/.claude to the same project.
+
+        A project's memory stays that project's: Claude Code loads it only
+        there. What holds in every project lives in shared/memory, which
+        shared/AGENTS.md imports into every session, so nothing here links a
+        project to it.
+        """
         claude_bak = self._moved_aside(".claude")
-        slugs = self._discover_slugs(claude_bak)
+        if not claude_bak or not (claude_bak / MEMORY_PARENT).is_dir():
+            return
+        for project in sorted((claude_bak / MEMORY_PARENT).iterdir()):
+            bak_mem = project / "memory"
+            if not bak_mem.is_dir() or bak_mem.is_symlink():
+                # A link is an earlier install's link to the shared pool.
+                continue
+            target = self._claude_dir() / MEMORY_PARENT / project.name / "memory"
+            if target.is_symlink():
+                self.result.skipped.append(f"phase 2: {target} is a link; {bak_mem} left in the backup")
+                continue
+            self._record(Mkdir(target.parent))
+            self._merge_memory(bak_mem, target)
 
-        for slug in slugs:
-            mem_link = self._claude_dir() / MEMORY_PARENT / slug / "memory"
-            parent = mem_link.parent
+    def _merge_memory(self, src: Path, dst: Path) -> None:
+        """Copy a memory directory into another, keeping what the other already has.
 
-            bak_mem = (
-                claude_bak / "projects" / slug / "memory" if claude_bak else None
-            )
-            if bak_mem and bak_mem.is_dir():
-                self._merge_memory(bak_mem, kept_at=bak_mem)
-
-            self._record(Mkdir(parent))
-
-            if mem_link.is_symlink():
-                if Path(os.readlink(mem_link)) == self.shared_memory:
-                    continue
-                self._record(_Unlink(mem_link))
-            elif mem_link.exists():
-                backup = mem_link.with_name(mem_link.name + f".bak.{self.ts}")
-                # A memory directory Claude Code made since the last install
-                # holds memories the pool has never seen; moving it aside
-                # without this would take them out of use.
-                if mem_link.is_dir():
-                    self._merge_memory(mem_link, kept_at=backup)
-                self._record(Backup(mem_link, backup))
-
-            self._record(Symlink(self.shared_memory, mem_link))
-
-    def _merge_memory(self, src: Path, kept_at: Path) -> None:
-        """Bring a project's memory directory into the shared pool.
-
-        Files the pool lacks are copied and the pointer lines its index lacks
-        are appended; the render carries those lines over. A file the pool has
-        under the same name with other content is not copied: the pool's copy
-        stays, and the skip list names the file and where the other one is kept.
+        Files the destination lacks are copied and the pointer lines its index
+        lacks are appended. A file it has under the same name with other
+        content is not copied: the skip list names it, and the original stays
+        in the backup.
         """
         for child in sorted(src.iterdir()):
-            theirs = self.shared_memory / child.name
+            theirs = dst / child.name
             if child.name == "MEMORY.md" or not child.is_file() or not theirs.is_file():
                 continue
             if theirs.read_bytes() != child.read_bytes():
                 self.result.skipped.append(
-                    f"phase 2: {theirs} differs from {child}; the shared copy stays, "
-                    f"the other is kept at {kept_at / child.name}"
+                    f"phase 2: {theirs} differs from {child}; the existing copy stays, "
+                    "the other is kept in the backup"
                 )
-        self._record(MergeMissingFiles(src, self.shared_memory))
+        self._record(MergeMissingFiles(src, dst))
         if (src / "MEMORY.md").is_file():
-            self._record(MergeIndexLines(src / "MEMORY.md", self.shared_memory / "MEMORY.md"))
-
-    def _discover_slugs(self, claude_bak: Path | None) -> list[str]:
-        slugs: list[str] = []
-        if claude_bak and (claude_bak / "projects").is_dir():
-            for sub in (claude_bak / "projects").iterdir():
-                if (sub / "memory").exists():
-                    slugs.append(sub.name)
-
-        cwd_slug = project_slug(Path.cwd())
-        if cwd_slug not in slugs:
-            slugs.append(cwd_slug)
-        return slugs
+            self._record(MergeIndexLines(src / "MEMORY.md", dst / "MEMORY.md"))
 
     # ---- phase 3: restore runtime data ----
 

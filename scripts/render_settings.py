@@ -1217,6 +1217,8 @@ def render_codex(
 
 
 _INSTRUCTION_LINE = re.compile(r"^See \[[^\]]*\]\((?:\./)?(instructions/[^)#\s]+\.md)(?:#[^)\s]*)?\)")
+# Claude Code's import: a line that is only `@relative/path.md`.
+_IMPORT_LINE = re.compile(r"^@((?![/~])[^\s@]+\.md)\s*$")
 _BARE_TAIL = re.compile(r"^\s*[.,:;]?\s*$")
 _INLINE_TARGET = re.compile(r"(\]\(\s*)(<[^>\n]*>|[^)\s]+)")
 # A definition holds only a target and an optional title; "[Note]: some prose"
@@ -1230,8 +1232,9 @@ _FENCE = re.compile(r"^\s*(`{3,}|~{3,})(.*)$")
 
 CODEX_AGENTS_HEADER = (
     "<!-- Rendered by scripts/render_settings.py from shared/AGENTS.md with every\n"
-    "linked instructions/*.md inlined, because Codex does not follow links. Codex\n"
-    "reads this in place of AGENTS.md. Edit the sources, then re-render. -->"
+    "linked instructions/*.md and every @-imported file inlined, because Codex\n"
+    "follows neither. Codex reads this in place of AGENTS.md. Edit the sources,\n"
+    "then re-render. -->"
 )
 
 
@@ -1293,9 +1296,12 @@ def _prose(lines: list[str]) -> list[tuple[str, bool]]:
     return out
 
 
-def _inline_instruction(path: Path) -> list[str]:
-    """The file's body without its title, one heading level down, links made absolute."""
-    lines = path.read_text().splitlines()
+def _inline_instruction(path: Path, text: str | None = None) -> list[str]:
+    """The file's body without its title, one heading level down, links made absolute.
+
+    `text` stands in for the file's content: one this render is about to write.
+    """
+    lines = (path.read_text() if text is None else text).splitlines()
     if lines and lines[0].startswith("# "):
         lines = lines[1:]
     while lines and not lines[0].strip():
@@ -1310,7 +1316,7 @@ def _inline_instruction(path: Path) -> list[str]:
     return out
 
 
-def render_codex_agents(repo_root: Path, write: bool = True) -> str:
+def render_codex_agents(repo_root: Path, write: bool = True, memory: str | None = None) -> str:
     """Write Codex's global instructions with the linked instruction files inlined.
 
     Codex reads AGENTS.override.md in place of AGENTS.md, so the tracked
@@ -1318,12 +1324,18 @@ def render_codex_agents(repo_root: Path, write: bool = True) -> str:
     gets instructions, only the thin ones. A link line that says more than the
     link is kept above the body, so that text is not lost; code blocks are
     copied as they are.
+
+    A line that is only an `@path` import, which Claude Code expands by itself,
+    is replaced by that file's body too: that is how the shared memory index
+    reaches Codex. `memory` is the index this render writes, used in place of
+    the file on disk, which may be the previous render's.
     """
     source = repo_root / AGENTS_SOURCE_REL
     if not source.is_file():
         return ""
 
     base_dir = Path(os.path.abspath(source.parent))
+    memory_path = Path(os.path.abspath(repo_root / MEMORY_LIVE_REL))
     out = [CODEX_AGENTS_HEADER, ""]
     for line, prose in _prose(source.read_text().splitlines()):
         match = _INSTRUCTION_LINE.match(line) if prose else None
@@ -1333,6 +1345,14 @@ def render_codex_agents(repo_root: Path, write: bool = True) -> str:
             if target.is_file():
                 if not _BARE_TAIL.match(line[match.end():]):
                     out += [_absolute_links(line, base_dir), ""]
+                out += _inline_instruction(target)
+            continue
+        imported = _IMPORT_LINE.match(line) if prose else None
+        if imported:
+            target = Path(os.path.normpath(base_dir / imported.group(1)))
+            if memory and target == memory_path:
+                out += _inline_instruction(target, memory)
+            elif target.is_file():
                 out += _inline_instruction(target)
             continue
         out.append(_absolute_links(line, base_dir) if prose else line)
@@ -1375,12 +1395,13 @@ def render_all(repo_root: Path, write: bool = True) -> dict[str, dict | str]:
 
 def _render_each(repo_root: Path, write: bool, quiet: bool = False) -> dict[str, dict | str]:
     servers = render_mcp(repo_root, write=write)
+    memory = render_memory(repo_root, write=write)
     return {
         LIVE_REL: render(repo_root, write=write, quiet=quiet),
         MCP_LIVE_REL: servers,
-        MEMORY_LIVE_REL: render_memory(repo_root, write=write),
+        MEMORY_LIVE_REL: memory,
         CODEX_LIVE_REL: render_codex(repo_root, servers=servers, write=write, quiet=quiet),
-        CODEX_AGENTS_REL: render_codex_agents(repo_root, write=write),
+        CODEX_AGENTS_REL: render_codex_agents(repo_root, write=write, memory=memory),
     }
 
 

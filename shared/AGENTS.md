@@ -41,6 +41,11 @@ See [instructions/personal.md](./instructions/personal.md) — supplied by an ov
 
 ## Long-term memory
 
-Persistent facts about the user, projects, and prior feedback live in
-[memory/MEMORY.md](./memory/MEMORY.md). Read it when its contents are relevant
-to the task at hand.
+The user's preferences and the rules that hold in every project live in the shared memory pool, [memory/](./memory/). Its index follows; open a memory file when its line is relevant to the task at hand.
+
+@memory/MEMORY.md
+
+Where a new memory goes:
+
+- One that holds only in the current project goes in the tool's own project memory (Claude Code: `~/.claude/projects/<project>/memory/`), which loads only in that project.
+- One that holds in every project goes in [memory/](./memory/), with its line added to `memory/MEMORY.md`. If it names an employer's systems, hosts or people, it goes in that environment's overlay instead; `scripts/overlay.py route` names the overlay. See [docs/overlay.md](../docs/overlay.md).

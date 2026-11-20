@@ -1053,6 +1053,32 @@ class CodexAgentsTests(FixtureRepo):
         self.assertNotIn("instructions/personal.md", text)
         self.assertEqual((self.repo / rs.CODEX_AGENTS_REL).read_text(), text)
 
+    def test_an_import_line_is_replaced_by_the_file(self):
+        self.write("shared/AGENTS.md", (
+            "# T\n\n## Long-term memory\n\nThe index follows.\n\n@memory/MEMORY.md\n\n"
+            "```\n@memory/MEMORY.md\n```\n"
+        ))
+        self.write("shared/memory/MEMORY.md", "- [Rule](feedback_rule.md) — always\n")
+        text = rs.render_codex_agents(self.repo, write=False)
+        memory = os.path.abspath(self.repo / "shared" / "memory")
+        self.assertIn(f"The index follows.\n\n- [Rule]({memory}/feedback_rule.md) — always\n", text)
+        # Only the one in the code block is left as written.
+        self.assertEqual(text.count("@memory/MEMORY.md"), 1)
+
+    def test_the_index_this_render_writes_is_the_one_inlined(self):
+        self.write("shared/AGENTS.md", "# T\n\n@memory/MEMORY.md\n")
+        self.write("shared/memory/MEMORY.md", "- [Old](old.md) — stale\n")
+        text = rs.render_codex_agents(self.repo, write=False, memory="- [New](new.md) — fresh\n")
+        self.assertIn("[New]", text)
+        self.assertNotIn("[Old]", text)
+
+    def test_an_import_of_a_missing_file_goes(self):
+        self.write("shared/AGENTS.md", "# T\n\nBefore.\n\n@memory/MEMORY.md\n\nAfter.\n")
+        text = rs.render_codex_agents(self.repo, write=False)
+        self.assertNotIn("@memory", text)
+        self.assertIn("Before.", text)
+        self.assertIn("After.", text)
+
     def test_text_after_a_link_is_kept_above_the_body(self):
         self.write("shared/instructions/personal.md", "# Personal\n\n- Call me J.\n")
         text = rs.render_codex_agents(self.repo, write=False)
