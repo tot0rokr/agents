@@ -1,0 +1,83 @@
+"""The layers the harness is assembled from: the base (this repo) and the overlays.
+
+The base is layer 0. It has the parts an overlay has (a manifest, setup steps,
+settings and MCP fragments, a memory index, and the memory, instructions,
+commands, subagents and skills directories), but it keeps them where the tools
+read them, so applying it links nothing. Overlays (overlay.Overlay) bring
+theirs in from overlays/<alias>/, in priority order, on top of the base.
+
+This module imports nothing from overlay or render_settings at load time;
+both import it.
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+BASE_ALIAS = "base"
+BASE_PRIORITY = 0
+BASE_MANIFEST_REL = "layer.json"
+
+# How a layer's files reach the view directories the tools read.
+#   inplace: they are already there (the base)
+#   symlink: each file, or each skill directory, is symlinked in (overlays)
+APPLY_INPLACE = "inplace"
+APPLY_SYMLINK = "symlink"
+# What an overlay manifest may declare as "apply"; the default is symlink.
+OVERLAY_APPLY_MODES = (APPLY_SYMLINK,)
+
+# Overlay-relative directory -> the view directory the base and the overlays fill.
+VIEW_DIRS = {
+    "memory": "shared/memory",
+    "instructions": "shared/instructions",
+    "commands": "shared/commands",
+    "subagents": "shared/subagents",
+    "skills": "universal/skills",
+}
+
+# Overlay-relative file -> where the base keeps the same part.
+BASE_PATHS = {
+    "settings/claude.json": "claude/settings.base.json",
+    "settings/codex.toml": "codex/config.base.toml",
+    "mcp/servers.json": "shared/mcp/servers.base.json",
+    "memory/MEMORY.md": "shared/memory/MEMORY.base.md",
+}
+
+
+class BaseLayer:
+    """The harness repo itself, seen through the interface overlays have."""
+
+    alias = BASE_ALIAS
+    priority = BASE_PRIORITY
+    enabled = True
+    cloned = True
+    is_base = True
+    apply_mode = APPLY_INPLACE
+
+    def __init__(self, repo_root: Path):
+        self.repo_root = repo_root
+
+    def manifest(self) -> dict:
+        target = self.repo_root / BASE_MANIFEST_REL
+        return json.loads(target.read_text()) if target.is_file() else {}
+
+    def variables(self) -> dict:
+        return {"CLAUDE_HOME": str(Path.home())}
+
+    def real_path(self, rel: str) -> Path:
+        """Where the base keeps the part an overlay keeps at `rel`."""
+        if rel in BASE_PATHS:
+            return self.repo_root / BASE_PATHS[rel]
+        head, _, tail = rel.partition("/")
+        if head in VIEW_DIRS:
+            view = self.repo_root / VIEW_DIRS[head]
+            return view / tail if tail else view
+        return self.repo_root / rel
+
+
+def layers(repo_root: Path) -> list:
+    """The base, then the enabled overlays in merge order (priority, then alias)."""
+    from overlay import enabled_overlays  # local import: overlay imports this module
+
+    return [BaseLayer(repo_root), *enabled_overlays(repo_root)]

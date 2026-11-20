@@ -18,6 +18,7 @@ from fnmatch import fnmatch
 from pathlib import Path
 
 from install import Mkdir, Symlink
+from layers import APPLY_SYMLINK, BASE_ALIAS, OVERLAY_APPLY_MODES, VIEW_DIRS, layers
 from render_settings import OVERLAYS_MODE, artifact_current, dumps, preview, render_all, substitute
 
 OVERLAYS_REL = "overlays"
@@ -38,13 +39,10 @@ VARS_LOCAL_NAME = "vars.local.json"
 EXCLUDE_BEGIN = "# >>> agents-overlay >>>"
 EXCLUDE_END = "# <<< agents-overlay <<<"
 
-# (overlay dir, base dir, glob or None for directory drop-ins)
-LINK_MAP = (
-    ("memory", "shared/memory", "*.md"),
-    ("instructions", "shared/instructions", "*.md"),
-    ("commands", "shared/commands", "*.md"),
-    ("subagents", "shared/subagents", "*.md"),
-    ("skills", "universal/skills", None),
+# (overlay dir, view dir, glob or None for directory drop-ins). The view dirs
+# are where the base keeps the same parts (layers.VIEW_DIRS).
+LINK_MAP = tuple(
+    (src, dst, None if src == "skills" else "*.md") for src, dst in VIEW_DIRS.items()
 )
 
 ALIAS_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
@@ -77,9 +75,19 @@ class Overlay:
     enabled: bool = True
     repo_root: Path = field(default=Path("."), repr=False)
 
+    is_base = False
+
     @property
     def path(self) -> Path:
         return self.repo_root / OVERLAYS_REL / self.alias
+
+    @property
+    def apply_mode(self) -> str:
+        """How this overlay's files reach the view directories (layers.py)."""
+        return self.manifest().get("apply", APPLY_SYMLINK)
+
+    def real_path(self, rel: str) -> Path:
+        return self.path / rel
 
     @property
     def cloned(self) -> bool:
@@ -273,6 +281,12 @@ def apply_overlay(
     """
     if not overlay.cloned:
         raise OverlayError(f"{overlay.alias}: not cloned — run 'overlay.py add' first")
+    mode = overlay.apply_mode
+    if mode not in OVERLAY_APPLY_MODES:
+        raise OverlayError(
+            f"{overlay.alias}: unknown apply mode '{mode}' in {MANIFEST_NAME} "
+            f"(supported: {', '.join(OVERLAY_APPLY_MODES)})"
+        )
 
     mine = {item["link"] for item in applied if item["alias"] == overlay.alias}
     others = {item["link"]: item["alias"] for item in applied if item["alias"] != overlay.alias}
@@ -408,6 +422,8 @@ def _render(repo_root: Path, write: bool = True) -> dict[str, dict | str]:
 def cmd_add(repo_root: Path, args, log) -> int:
     if not ALIAS_RE.match(args.alias):
         raise OverlayError(f"invalid alias '{args.alias}' (use lowercase letters, digits, - and _)")
+    if args.alias == BASE_ALIAS:
+        raise OverlayError(f"alias '{BASE_ALIAS}' is reserved for the harness repo itself (layer 0)")
 
     overlays = load_registry(repo_root)
     if any(o.alias == args.alias for o in overlays):
@@ -544,6 +560,7 @@ def cmd_list(repo_root: Path, args, log) -> int:
         counts[item["alias"]] = counts.get(item["alias"], 0) + 1
 
     log(f"{'ALIAS':<16} {'PRIO':>4}  {'STATE':<12} {'LINKS':>5}  REF     URL")
+    log(f"{BASE_ALIAS:<16} {0:>4}  {'base':<12} {'-':>5}  {'-':<7} this repo (layer 0, layer.json)")
     for overlay in overlays:
         if not overlay.cloned:
             state = "not-cloned"
@@ -598,10 +615,10 @@ def cmd_status(repo_root: Path, args, log) -> int:
                 log(f"DRIFT {rel} differs from a fresh render — run 'overlay.py install'")
                 problems += 1
 
-    for overlay in enabled_overlays(repo_root):
-        for step in overlay.manifest().get("setup", []):
-            if _run_check(repo_root, overlay, step) is False:
-                log(f"SETUP {overlay.alias}/{step['id']} pending — run 'overlay.py setup {overlay.alias}'")
+    for layer in layers(repo_root):
+        for step in layer.manifest().get("setup", []):
+            if _run_check(repo_root, layer, step) is False:
+                log(f"SETUP {layer.alias}/{step['id']} pending — run 'overlay.py setup {layer.alias}'")
                 problems += 1
 
     if problems == 0:
@@ -609,13 +626,16 @@ def cmd_status(repo_root: Path, args, log) -> int:
     return 1 if problems else 0
 
 
-def _step_env(overlay: Overlay) -> dict:
+# The setup helpers below take any layer: an Overlay or layers.BaseLayer.
+
+
+def _step_env(overlay) -> dict:
     env = dict(os.environ)
     env.update({k: str(v) for k, v in overlay.variables().items()})
     return env
 
 
-def _run_check(repo_root: Path, overlay: Overlay, step: dict) -> bool | None:
+def _run_check(repo_root: Path, overlay, step: dict) -> bool | None:
     """True = already satisfied, False = pending, None = step declares no check."""
     command = step.get("check")
     if not command:
@@ -630,7 +650,11 @@ def _run_check(repo_root: Path, overlay: Overlay, step: dict) -> bool | None:
     return proc.returncode == 0
 
 
-def _agent_command(repo_root: Path, overlay: Overlay, step: dict, args) -> list[str]:
+def _agent_command(repo_root: Path, overlay, step: dict, args) -> list[str]:
+    if overlay.is_base:
+        # The guardrail tells the agent never to touch the base repo's tracked
+        # files, so a base step has to be a plain command or a manual one.
+        raise OverlayError(f"{overlay.alias}/{step['id']}: base setup steps cannot be agent steps")
     prompt_path = overlay.path / step["agent"]
     if not prompt_path.is_file():
         raise OverlayError(f"{overlay.alias}/{step['id']}: agent prompt missing: {step['agent']}")
@@ -651,7 +675,7 @@ def _agent_command(repo_root: Path, overlay: Overlay, step: dict, args) -> list[
     return cmd + [prompt]
 
 
-def _run_step(repo_root: Path, overlay: Overlay, step: dict, args, log) -> str:
+def _run_step(repo_root: Path, overlay, step: dict, args, log) -> str:
     label = f"{overlay.alias}/{step['id']}"
 
     if step.get("run"):
@@ -754,13 +778,13 @@ def cmd_route(repo_root: Path, args, log) -> int:
 
 
 def cmd_setup(repo_root: Path, args, log) -> int:
-    overlays = enabled_overlays(repo_root)
+    overlays = layers(repo_root)  # the base first, so its steps run before the overlays'
     if args.alias:
         overlays = [o for o in overlays if o.alias == args.alias]
         if not overlays:
-            raise OverlayError(f"no enabled overlay registered as '{args.alias}'")
+            raise OverlayError(f"no base or enabled overlay registered as '{args.alias}'")
 
-    plan: list[tuple[Overlay, dict, bool | None]] = []
+    plan: list[tuple[object, dict, bool | None]] = []
     for overlay in overlays:
         for step in overlay.manifest().get("setup", []):
             if args.only and step.get("id") not in args.only:

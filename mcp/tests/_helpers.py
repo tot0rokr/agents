@@ -35,7 +35,7 @@ def _toml_reader():
 
 TOML = _toml_reader()
 needs_toml = unittest.skipIf(TOML is None, "no TOML reader, so the harness skips the Codex render")
-COPIED_SCRIPTS = ("install.py", "render_settings.py", "overlay.py")
+COPIED_SCRIPTS = ("install.py", "layers.py", "render_settings.py", "overlay.py")
 
 
 def make_fake_repo(root: Path, with_scripts: bool = False, git_init: bool = False) -> Path:

@@ -34,22 +34,27 @@ except ImportError:
         tomllib = None
 NO_TOML_READER = "no TOML reader: needs Python 3.11+ or the tomli package"
 
-BASE_REL = "claude/settings.base.json"
+from layers import BASE_PATHS  # noqa: E402  (after the tomllib probe, which must not depend on it)
+
+# Each artifact is the base layer's part (*_BASE_REL, where layers.BASE_PATHS
+# says the base keeps it) with every overlay's fragment (*_FRAGMENT_REL)
+# merged on top, written to *_LIVE_REL.
 LIVE_REL = "claude/settings.json"
 STATE_REL = "overlays/rendered.local.json"
 FRAGMENT_REL = "settings/claude.json"
+BASE_REL = BASE_PATHS[FRAGMENT_REL]
 
-MCP_BASE_REL = "shared/mcp/servers.base.json"
 MCP_LIVE_REL = "shared/mcp/servers.json"
 MCP_FRAGMENT_REL = "mcp/servers.json"
+MCP_BASE_REL = BASE_PATHS[MCP_FRAGMENT_REL]
 
-MEMORY_BASE_REL = "shared/memory/MEMORY.base.md"
 MEMORY_LIVE_REL = "shared/memory/MEMORY.md"
 MEMORY_FRAGMENT_REL = "memory/MEMORY.md"
+MEMORY_BASE_REL = BASE_PATHS[MEMORY_FRAGMENT_REL]
 
-CODEX_BASE_REL = "codex/config.base.toml"
 CODEX_LIVE_REL = "codex/config.toml"
 CODEX_FRAGMENT_REL = "settings/codex.toml"
+CODEX_BASE_REL = BASE_PATHS[CODEX_FRAGMENT_REL]
 CODEX_STATE_KEY = "codexManaged"
 # servers.json and codex/config.toml carry overlay MCP servers, and with them
 # their credentials. Either one left readable exposes them, so both are private.
