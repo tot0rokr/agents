@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # UserPromptSubmit: stamp the prompt-arrival time into the model's context, and
 # surface how long ago the previous answer ended. Also records the arrival time
-# so the Stop hook can compute this turn's duration. State is per-session.
+# and the transcript size so the Stop hook can compute this turn's duration and
+# token usage. State is per-session.
 set -uo pipefail
 
 input=$(cat)
@@ -13,7 +14,13 @@ now_human=$(date '+%Y-%m-%d %H:%M:%S')
 
 state_dir="$HOME/.claude/.timestamp-state"
 mkdir -p "$state_dir"
-printf '%s %s\n' "$now_epoch" "$now_human" > "$state_dir/${sid}.last-prompt"
+
+transcript=$(printf '%s' "$input" | jq -r '.transcript_path // empty' 2>/dev/null || true)
+transcript_offset=0
+[[ -n "$transcript" && -f "$transcript" ]] && transcript_offset=$(wc -c < "$transcript")
+
+# Line 1 is read by the Stop and Notification hooks; line 2 only by Stop.
+printf '%s %s\n%s\n' "$now_epoch" "$now_human" "$transcript_offset" > "$state_dir/${sid}.last-prompt"
 
 line="⏱ 프롬프트 수신: ${now_human}"
 end_file="$state_dir/${sid}.last-answer-end"
