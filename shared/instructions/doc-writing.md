@@ -72,12 +72,15 @@
 
 ## 다이어그램
 
-- 코드 블록이나 코드 주석 안에 들어가는 그림은 ASCII 아트로 그린다. Markdown 문서에서도 블록 박스 몇 개, 직선 흐름, 트리 정도의 단순한 그림은 코드 블록 ASCII로 둔다.
+- 코드 블록이나 코드 주석 안에 들어가는 그림은 텍스트 그림으로 넣는다. Markdown 문서에서도 블록 박스 몇 개, 직선 흐름, 트리 정도의 단순한 그림은 코드 블록 텍스트 그림으로 둔다.
+- 텍스트 그림은 손으로 그리지 않는다. Mermaid로 쓴 뒤 termaid로 그려서 그 출력을 그대로 붙인다(`printf '%s\n' '<mermaid>' | termaid --width 100`). 소스 코드 주석처럼 7비트로 남아야 하면 `--ascii`를 붙인다. 자세한 사용법은 [feedback_terminal_diagrams_termaid](../memory/feedback_terminal_diagrams_termaid.md)에 있다.
 
   ```
-  ┌────────┐    ┌────────┐
-  │ Client │ -> │ Server │
-  └────────┘    └────────┘
+  ┌──────────┐    ┌──────────┐
+  │          │    │          │
+  │  Client  ├───►│  Server  │
+  │          │    │          │
+  └──────────┘    └──────────┘
   ```
 
 - 그보다 복잡한 그림은 문서에 이미지를 첨부할 수 있으면 diagram-design이나 archify로 그려 SVG, WebP, PNG, JPEG 중 하나로 첨부한다. 둘 중 무엇을 쓸지는 [feedback_diagram_skill_routing](../memory/feedback_diagram_skill_routing.md)을 따른다.

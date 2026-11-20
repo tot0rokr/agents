@@ -10,6 +10,12 @@
     "defaultMode": "auto"
   },
   "model": "opus[1m]",
+  "enabledPlugins": {
+    "termaid@termaid": true
+  },
+  "extraKnownMarketplaces": {
+    "termaid": { "source": { "source": "github", "repo": "fasouto/termaid" } }
+  },
   "hooks": {
     "PreCompact": [
       {

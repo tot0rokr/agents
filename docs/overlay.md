@@ -54,6 +54,26 @@ Higher `priority` wins when two overlays want the same thing — a JSON key or a
 
 A file the base repo itself provides is the one exception: an overlay may not shadow it, and `install` refuses rather than hiding a tracked file behind a symlink.
 
+## The base is layer 0
+
+The base repo is a layer too, with priority 0, under every overlay (`scripts/layers.py`). It has the parts an overlay has, but keeps them where the tools read them, so applying it links nothing:
+
+```
+overlay part           where the base keeps it
+overlay.json           layer.json (repo root)
+memory/ instructions/  shared/memory/, shared/instructions/
+commands/ subagents/   shared/commands/, shared/subagents/
+skills/<name>/         universal/skills/<name>/
+memory/MEMORY.md       shared/memory/MEMORY.base.md
+settings/claude.json   claude/settings.base.json
+settings/codex.toml    codex/config.base.toml
+mcp/servers.json       shared/mcp/servers.base.json
+```
+
+`overlay.py list` shows it as the first row, and `setup` and `status` run its `layer.json` setup steps before any overlay's (`overlay.py setup base --only <id>`). The alias `base` is reserved, so no overlay can be registered under it. A base step is a `run` or `manual` step only: the agent guardrail forbids touching the base repo's tracked files.
+
+An overlay's `overlay.json` may name how its files reach the base tree with `"apply"`. The only mode today is `"symlink"`, the default, described below; any other value makes `install` refuse the overlay.
+
 ## How an overlay is applied
 
 Markdown and skill drop-ins are symlinked from the overlay clone into the base tree. Nothing is copied, so `git -C overlays/<alias> pull` is enough to pick up changes, and provenance stays obvious when you look at the file. The symlinks are registered in `.git/info/exclude` so they never appear as untracked files in the base repo.
@@ -171,7 +191,7 @@ What does *not* go into an overlay is the raw transcript. `~/.claude/projects` i
 
 ## Setup steps
 
-Some of an environment cannot be expressed as files: a credential file the MCP server reads, a systemd unit, a `gh` login, a password that belongs in the environment rather than in any repo. An overlay declares those as `setup` steps in its manifest, and `overlay.py setup` works through them.
+Some of an environment cannot be expressed as files: a credential file the MCP server reads, a systemd unit, a `gh` login, a password that belongs in the environment rather than in any repo. An overlay declares those as `setup` steps in its manifest, and `overlay.py setup` works through them. The base declares its own in `layer.json` (for one, the `termaid` CLI), and they come first.
 
 ```json
 {

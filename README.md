@@ -54,9 +54,12 @@ agents/
 │   ├── commands/                .toml files generated from shared/commands
 │   └── extensions/              Gemini Extensions
 │
+├── layer.json                   the base's manifest: layer 0 under every overlay, its setup steps
+│
 ├── scripts/
 │   ├── install.py               home-dir symlinks, rollback-safe; renders settings
 │   ├── install.sh               thin wrapper around install.py
+│   ├── layers.py                the base as layer 0: where it keeps each part an overlay has
 │   ├── overlay.py               register and apply environment overlays
 │   ├── render_settings.py       bases + overlays -> every render artifact, Codex's included
 │   ├── render-mcp.sh            servers.json -> ~/.claude.json; servers.base.json -> OpenCode, Gemini

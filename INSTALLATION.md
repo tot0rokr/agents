@@ -173,6 +173,8 @@ python3 ~/agents/scripts/overlay.py setup <alias> --dry-run
 
 That lists steps an overlay declares beyond files — a credential file to install, a login to perform, a helper to put on PATH. Show the user the list and let them decide; run it with `--yes` only if they say so. Some steps need a secret only they have.
 
+The base repo declares steps of its own in `layer.json` (the `termaid` CLI, for one). `overlay.py setup base --dry-run` lists them, and they need the same go-ahead.
+
 If they say none, say so in your report and move on. `scripts/overlay.py init <alias>` scaffolds a new overlay later, and `docs/overlay.md` explains the model.
 
 ### Step 7 — Tell the user what happened
