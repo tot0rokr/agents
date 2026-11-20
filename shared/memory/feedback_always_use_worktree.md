@@ -12,4 +12,6 @@ git 프로젝트 위에서 개발할 때는 항상 git worktree를 만들어서 
 
 **Why:** 한 repo에서 여러 작업을 동시에 진행하면 충돌 등 문제가 생길 수 있다. worktree로 작업을 격리하면 이를 방지할 수 있다. 병합은 되돌리기 어려운 outward 동작이라 사용자 확인 없이 자동으로 하면 안 된다.
 
-**How to apply:** 코드 변경을 시작하기 전에 대상 디렉토리가 git repo인지 확인하고, 맞으면 새 worktree를 상위 디렉토리에 `프로젝트명-branch명`으로 생성한 뒤 그 안에서 작업한다. main/기본 브랜치에서 바로 작업하지 않는다. 작업이 끝나면 병합을 자동으로 실행하지 말고 "머지할까요?"라고 먼저 물어본 뒤, 승인을 받으면 병합한다. BSP/Jira 티켓 작업이면 기존 [[project_grep_find_rg_fd_wrappers]]와 무관하게 claude-bsp `worktree` 스킬을 우선 사용한다.
+**How to apply:** 코드 변경을 시작하기 전에 대상 디렉토리가 git repo인지 확인하고, 맞으면 새 worktree를 상위 디렉토리에 `프로젝트명-branch명`으로 생성한 뒤 그 안에서 작업한다. main/기본 브랜치에서 바로 작업하지 않는다. 작업이 끝나면 병합을 자동으로 실행하지 말고 "머지할까요?"라고 먼저 물어본 뒤, 승인을 받으면 병합한다. BSP/Jira 티켓 작업이면 위 이름 규칙과 무관하게 claude-bsp `worktree` 스킬을 우선 사용한다.
+
+**예외:** agents repo(`~/agents`)는 실시간 동기화를 위해 `~/.claude`에 symlink되어 있으므로 worktree 없이 `main`에서 바로 작업한다.

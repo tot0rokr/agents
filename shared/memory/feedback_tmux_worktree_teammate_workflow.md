@@ -1,6 +1,6 @@
 ---
 name: feedback_tmux_worktree_teammate_workflow
-description: "default workflow when inside tmux — each teammate runs in its own git worktree + its own tmux window (watchable/attachable), merge and close when done"
+description: "default workflow when inside tmux — each teammate runs in its own git worktree + its own tmux window (watchable/attachable), close when done and leave the merge to the user"
 metadata: 
   node_type: memory
   type: feedback
@@ -16,5 +16,5 @@ tmux 안에서 작업할 때 teammate를 띄우는 기본 방식은 "각 teammat
 - worktree: 사용자 규칙대로 `../프로젝트명-branch명`에 생성. (네이티브 `claude --worktree`는 `.claude/worktrees/`에 만드니, 규칙을 지키려면 직접 만든 뒤 그 경로를 넘긴다.)
 - teammate 창 띄우기(실측 동작): `tmux new-window -d -n <이름> -c <worktree경로> "claude '<할 일>'; exec bash"`. 새 디렉토리면 첫 실행 시 trust 프롬프트가 뜬다.
 - 엿보기/소통: `tmux capture-pane -t <세션>:<이름> -p`로 상태 확인, `tmux send-keys -t <세션>:<이름> '<입력>' Enter`로 지시. (harness 내부 Agent 서브에이전트면 SendMessage 사용.)
-- 완료 시: worktree 병합 후 창 정리(`tmux kill-window` 또는 pane에서 `/exit`). 각 teammate는 독립 claude 세션이라 토큰을 쓰므로 끝나면 닫는다.
-- 대안: 대화형 터미널이면 `claude '<할 일>' --worktree <이름> --tmux=classic`(iTerm2면 `--tmux`)로 네이티브 셋업 가능. 단 헤드리스 백그라운드에서는 hang되니 그땐 `tmux new-window` 방식.
+- 완료 시: 창을 정리하고(`tmux kill-window` 또는 pane에서 `/exit`) 결과를 보고한다. worktree 병합 시점은 사용자가 정하고, 즉시 병합하라고 명시한 경우에만 바로 병합한다. 각 teammate는 독립 claude 세션이라 토큰을 쓰므로 끝나면 닫는다.
+- 네이티브 `claude '<할 일>' --worktree <이름> --tmux`는 쓰지 않는다. worktree를 `.claude/worktrees/` 아래에 만들어 위 규칙과 어긋나고, 헤드리스 백그라운드에서는 hang된다. 항상 직접 만든 worktree에 `tmux new-window` 방식으로 띄운다.
