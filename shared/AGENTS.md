@@ -45,7 +45,19 @@ The user's preferences and the rules that hold in every project live in the shar
 
 @memory/MEMORY.md
 
-Where a new memory goes:
+## Where new content goes
 
-- One that holds only in the current project goes in the tool's own project memory (Claude Code: `~/.claude/projects/<project>/memory/`), which loads only in that project.
-- One that holds in every project goes in [memory/](./memory/), with its line added to `memory/MEMORY.md`. If it names an employer's systems, hosts or people, it goes in that environment's overlay instead; `scripts/overlay.py route` names the overlay. See [docs/overlay.md](../docs/overlay.md).
+Decide who owns a new memory, skill, instruction, command, subagent, settings fragment or MCP server before writing it. Paths below are relative to the harness repo (`~/agents`).
+
+| The content | Goes in |
+|---|---|
+| holds only in the current project | the tool's own project memory (Claude Code: `~/.claude/projects/<project>/memory/`), which loads only in that project |
+| holds in every project and names nothing environment-specific | the base, this repo, which is public |
+| names an employer's systems, hosts, internal repos, people or tickets | that environment's overlay; `scripts/overlay.py route` names it |
+| is about the user personally: identity, personal machines and accounts | the personal overlay |
+| is a credential | no git repo at all: a machine-local file or an environment variable |
+
+- When unsure, use an overlay (private), never the base.
+- File it with `scripts/overlay.py file <path> --to base|<alias>`: it stages the file in the right repo and moves its index line to the right index source. Commit afterwards, in that repo. By hand, a memory's index line goes in `shared/memory/MEMORY.base.md` for the base or `overlays/<alias>/memory/MEMORY.md` for an overlay; `shared/memory/MEMORY.md` is rendered, so a line added there is not filed.
+- `scripts/overlay.py status` lists anything in the view directories that nobody tracks as `UNFILED`.
+- Before committing to the base, read the diff for hostnames, IPs, internal URLs, user names and ticket IDs. A hook refuses a base commit of a path an overlay provides. See [docs/overlay.md](../docs/overlay.md).

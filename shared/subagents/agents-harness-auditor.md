@@ -16,7 +16,7 @@ Run these in order, fail fast on the first broken assumption:
    - `scripts/render-mcp.sh` and `scripts/render-gemini-commands.sh` write tracked files. Run them against a `mktemp` copy with `HOME` pointed at a temp dir too, because `render-mcp.sh` patches `$HOME/.claude.json` wherever the repo is, and diff `opencode/opencode.json`, `gemini/settings.json` and `gemini/commands/` against the files on disk, JSON as data.
    - If they differ, the canonical source was edited but the rendered file wasn't regenerated. Flag with the exact command to fix.
 
-3. **Symlink sanity** — walk `universal/`, `shared/`, and each tool dir (`claude/`, `codex/`, `opencode/`, `gemini/`). Every symlink must resolve to a path inside the repo. Use `find . -type l` plus `readlink -f`. Flag any link that resolves outside the repo or to a missing target.
+3. **Symlink sanity** — walk `universal/`, `shared/`, and each tool dir (`claude/`, `codex/`, `opencode/`, `gemini/`). Every symlink must resolve to a path inside the repo. Use `find . -type l` plus `readlink -f`. Flag any link that resolves outside the repo or to a missing target. A checkout-mode overlay's view files are real files, not links (docs/overlay.md, "Checkout mode"): for those, check that `python3 scripts/overlay.py status` reports no DRIFT, and that no path an overlay tracks (`git -C overlays/<alias> ls-files --full-name :/`) is also tracked by this repo.
 
 4. **Skill discovery** — for each `universal/skills/*/SKILL.md`:
    - Frontmatter has `name:` and `description:` fields.

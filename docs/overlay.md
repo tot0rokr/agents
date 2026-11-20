@@ -72,15 +72,51 @@ mcp/servers.json       shared/mcp/servers.base.json
 
 `overlay.py list` shows it as the first row, and `setup` and `status` run its `layer.json` setup steps before any overlay's (`overlay.py setup base --only <id>`). The alias `base` is reserved, so no overlay can be registered under it. A base step is a `run` or `manual` step only: the agent guardrail forbids touching the base repo's tracked files.
 
-An overlay's `overlay.json` may name how its files reach the base tree with `"apply"`. The only mode today is `"symlink"`, the default, described below; any other value makes `install` refuse the overlay.
+An overlay's files reach the base tree in one of two modes: `symlink` (described next, the default) or `checkout` (see "Checkout mode" below). An `"apply"` key in `overlay.json` names the mode; without one, the clone's layout decides. Any other value makes `install` refuse the overlay. `overlay.py list` shows each overlay's mode.
 
 ## How an overlay is applied
 
-Markdown and skill drop-ins are symlinked from the overlay clone into the base tree. Nothing is copied, so `git -C overlays/<alias> pull` is enough to pick up changes, and provenance stays obvious when you look at the file. The symlinks are registered in `.git/info/exclude` so they never appear as untracked files in the base repo.
+In symlink mode, Markdown and skill drop-ins are symlinked from the overlay clone into the base tree (checkout mode, below, keeps them as real files instead). Nothing is copied, so `git -C overlays/<alias> pull` is enough to pick up changes, and provenance stays obvious when you look at the file. The symlinks are registered in `.git/info/exclude` so they never appear as untracked files in the base repo.
 
 JSON fragments are merged, because two sources have to coexist in one file that the tool actually reads.
 
-`${VAR}` placeholders are substituted in JSON fragments, in TOML fragments (in keys too, so `[projects."${CLAUDE_HOME}/work"]` works) and in the overlay's `memory/MEMORY.md` index fragment. Values come from three layers, later ones winning: a built-in `CLAUDE_HOME` set to this machine's home directory, the overlay's `vars.json`, then this machine's `vars.local.json`. Leave anything that differs per machine — a home path, a port — out of `vars.json`, or one machine's value ends up on every other. Markdown drop-ins are symlinked verbatim — an overlay that needs private text in a memory file simply keeps that text in its own (private) repo, so there is nothing to substitute.
+## Checkout mode
+
+Symlinked files have one weakness: `grep -r`, `rg` and `fd` do not follow symlinks by default, so a search over `shared/memory` skips every overlay memory. In checkout mode an overlay's view files (memory, instructions, commands, subagents, skills) are real files in the view directories, tracked in place by the overlay's own git, so they are found like base files and there is still exactly one copy.
+
+How it works:
+
+- The clone stays at `overlays/<alias>/`, but its `core.worktree` is the harness root (`../../..`, relative to its `.git`), and `status.showUntrackedFiles` is `no`. Paths in the overlay repo are relative to the harness root: `shared/memory/x.md`, `universal/skills/<name>/...`, and everything else under `overlays/<alias>/` (manifest, settings, MCP, `memory/MEMORY.md`, tools). The manifest's `links` stay symlinks.
+- In the base, each view file is listed in the `.git/info/exclude` block, so `git status` stays clean and `git add` refuses it as ignored. rg and fd honour that exclude too, so `overlay.py` keeps a marked block of `!` lines in `.ignore` (read by rg and fd, never by git; itself excluded) that makes the files searchable again.
+- `install` refuses a view path the base tracks, one another overlay already provides, or one with a symlink in the way. A symlink-mode overlay cannot take over a checkout overlay's file by priority: there is no link to swap.
+- `install` puts three hooks in the clone. `pre-commit` refuses a commit that takes in a path outside `overlays/<alias>/` and the view directories, or one the base tracks. `post-commit` and `post-merge` run `overlay.py sync-views`, which refreshes the exclude block and `.ignore` so a newly committed view file never shows as untracked in the base.
+
+Working with git in a checkout overlay:
+
+- Run git from `overlays/<alias>` (or `git -C overlays/<alias>`). `git status` lists only tracked changes, and porcelain paths are relative to the harness root.
+- A new file under `overlays/<alias>/` needs `git add -f` the first time, because the base's `.gitignore` ignores `overlays/` and the overlay shares it. A new view file (`../../shared/memory/x.md`) is added normally.
+- Never `git add -A` there: from the overlay's side every base file is untracked. The guard refuses the commit, but the index is then polluted until `git reset`. The MCP `overlay_commit` tool stages only tracked changes unless given paths.
+
+Commands:
+
+- `add` clones with `--no-checkout`; a repo whose manifest is at `overlays/<alias>/overlay.json` is checked out in place, after refusing any view path the base tracks or that already exists. `checkout-index` only writes missing files.
+- `update` pulls a checkout overlay normally. For a symlink-mode clone whose upstream has moved to the checkout layout, it stops and says to run `convert`: pulling that layout into a symlink clone would move every file under `overlays/<alias>/overlays/<alias>/`.
+- `convert <alias> [--source <remote or path>] [--dry-run]` switches a symlink-mode clone in place. The target commit must be a pure restructure (every path moved to `overlays/<alias>/<same>` or to its view path, no content changed); `convert` fast-forwards to the commit before it if needed, saves `.git/config`, `.git/index` and the old HEAD under `.git/agents-convert-<time>/`, switches git's index without touching a file, renames each view file over its symlink, fills in any missing view file from git, and re-applies. A local edit or deletion survives; nothing the base has is written.
+- `remove` of a checkout overlay deletes its view files, so it needs `--purge` and a clean clone with nothing unpushed.
+
+Moving an overlay to checkout mode: make the restructure commit in a scratch clone (`git mv` only), then `overlay.py convert <alias> --source <scratch clone>` on this machine, after a backup. Push the harness repo before the overlay. Another machine then pulls the harness first and runs `overlay.py update`, which stops at the new layout, and then `overlay.py convert <alias>`; a machine still on an older harness would pull the restructure as a plain fast-forward and lose the overlay until it is converted.
+
+## Filing new content
+
+A new file in a view directory belongs to nobody until someone decides: the base (public) or an overlay (private). `shared/AGENTS.md`, "Where new content goes", says how to decide. Three things keep that decision from being skipped:
+
+- `overlay.py status` lists every file or skill directory in the view directories that no repo tracks as `UNFILED`. The memory index files (`MEMORY.md`, `MEMORY.base.md`) never count.
+- `overlay.py file <path> --to base|<alias>` stages it in the chosen repo. For a checkout overlay it stays in place and joins the exclude block and `.ignore`; for a symlink overlay it moves under `overlays/<alias>/` and is linked back. A memory's index line moves from the rendered index to the owner's index source (`shared/memory/MEMORY.base.md`, or `overlays/<alias>/memory/MEMORY.md`). Nothing is committed: review and commit in that repo.
+- `overlay.py install` puts a pre-commit hook in the base repo (`overlay.py check-staged`) that refuses a commit taking in a path an overlay provides, or anything inside a registered overlay's clone. A hook someone else wrote is never overwritten; install warns instead.
+
+To undo a conversion: restore `.git/config` and `.git/index` from the saved directory, `git reset --soft` to the saved HEAD, move the view files back under `overlays/<alias>/`, and run `overlay.py install <alias>` to recreate the symlinks.
+
+`${VAR}` placeholders are substituted in JSON fragments, in TOML fragments (in keys too, so `[projects."${CLAUDE_HOME}/work"]` works) and in the overlay's `memory/MEMORY.md` index fragment. Values come from three layers, later ones winning: a built-in `CLAUDE_HOME` set to this machine's home directory, the overlay's `vars.json`, then this machine's `vars.local.json`. Leave anything that differs per machine — a home path, a port — out of `vars.json`, or one machine's value ends up on every other. Markdown drop-ins are used verbatim (symlinked, or checked out in place) — an overlay that needs private text in a memory file simply keeps that text in its own (private) repo, so there is nothing to substitute.
 
 ## Rendered artifacts, not tracked ones
 

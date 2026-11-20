@@ -112,7 +112,9 @@ scripts/overlay.py install work --dry-run    # the links and rendered keys it wo
 scripts/overlay.py install work              # symlink content, re-render settings and MCP
 scripts/overlay.py setup work --dry-run      # what still needs setting up by hand or by agent
 scripts/overlay.py route --explain           # which overlay owns the work in this directory
-scripts/overlay.py status                    # drift check
+scripts/overlay.py status                    # drift check, and files no repo tracks (UNFILED)
+scripts/overlay.py file <path> --to <alias>  # give an unfiled memory or skill its owner (or --to base)
+scripts/overlay.py convert work --dry-run    # switch a symlink-mode clone to checkout mode (docs/overlay.md)
 ```
 
 Overlays live at `overlays/<alias>` inside this repo, and `overlays/` is gitignored in full, so a private overlay sits next to the base tree without the base ever tracking it.
