@@ -7,6 +7,8 @@ metadata:
 
 Both `diagram-design` and `archify` are installed, and both trigger on architecture, sequence and flow requests. Pick one by what the reader needs before loading either skill, and state the choice in one line.
 
+For a figure that goes into a document, the format comes first from the Diagrams section of `shared/instructions/doc-writing.md`: ASCII inside code blocks and code comments, an image drawn with one of these skills (SVG, WebP, PNG or JPEG) when the document can attach images, otherwise Mermaid where it renders, or an image made with a Mermaid renderer. The table below picks the tool once the answer is an image or a page.
+
 | Request | Use | Why |
 |---|---|---|
 | Sequence or state flow with branches, error paths or timeouts (auth flows, protocol updates such as PLDM) | diagram-design | ALT fragments, self-messages and composite state frames; it splits an over-budget request into a sequence plus a state machine. archify's sequence has no alt/opt, so branches read as consecutive steps and error paths end up in text cards. |
@@ -28,6 +30,8 @@ With archify:
 - `finalize` needs Chrome or Chromium on `PATH` (or `ARCHIFY_CHROME`). Repository mode needs an HTTP(S) or SSH `origin`; a `file://` clone is rejected.
 
 With both: look at a screenshot before handing the diagram over.
+
+If archify offers to make one-page explainers proactive and the user accepts, add its one-line `[archify explainer: ...]` rule to `shared/AGENTS.md`, the global rules file every tool reads (`~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` both link to it). Keep it to that one line.
 
 **Why:** In a 2026-11-04 comparison (4 scenarios x 2 tools, judged on fidelity, visual quality and practicality), archify won the simple requests because diagram-design's budgets cut content even there (one run dropped the User actor). diagram-design won the complex ones because it split into figures while archify pushed error paths and symlinks into cards. diagram-design won visual quality 4 of 4 and archify won practicality 4 of 4. The user chose this memory rule over patching diagram-design's budgets.
 
