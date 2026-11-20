@@ -12,4 +12,4 @@ When the user pastes a code snippet and asks for a rewrite/cleanup, work directl
 
 **Why:** User rejected a repo-wide `rg` for the pasted function and supplied the full text instead (2026-09-21). They then asked to restore the top-declaration style and undo an if/else→ternary change.
 
-**How to apply:** Refactor requests on pasted code: no filesystem search, no logic change, match the paste's declaration and conditional style, and answer "can branches be reduced further" honestly with the behavior trade-off. Related: [[act-on-sensible-defaults]], [[minimal-comments-docs-separate]].
+**How to apply:** Refactor requests on pasted code: no filesystem search, no logic change, match the paste's declaration and conditional style, and answer "can branches be reduced further" honestly with the behavior trade-off. Related: [[feedback_act_dont_over_ask]], [[feedback_minimal_comments_docs_separate]].
