@@ -39,7 +39,7 @@ A working tree often contains modifications from earlier sessions, the user's ow
 
    - **A file mixes changes that belong in this commit with ones that don't** (classic case: your one new line lives in a `MEMORY.md` / config that also holds working-tree-only PII or another session's edits) → never stage the whole file, and do not think in whole hunks either. git collapses nearby edits into a single hunk, so several unrelated changes routinely appear merged together and a plain `git add -p` `y` would take all of them. Select only the **exact lines** this commit should contain, named explicitly:
 
-     - **Preferred — build a patch of exactly those lines and apply it to the index.** Explicit, reviewable, and works non-interactively:
+     - **Preferred — build a patch of exactly those lines and apply it to the index.** Explicit, reviewable, and works non-interactively. Applying a hand-trimmed patch counts as authoring, so ask the user first, every time: show the trimmed patch and the `git apply --cached` command, then wait for approval.
 
        ```bash
        git diff -- path/to/mixed-file.md > /tmp/all.patch
@@ -78,7 +78,8 @@ A typical violation: the agent is doing a tree-wide rename or refactor and reach
 
 Use `type(scope): Subject`; add `!` immediately before `:` for a breaking change.
 
-- Use lowercase type and scope, an imperative subject, and no trailing period. Aim for at most 70 characters including the prefix.
+- Use lowercase type and scope, an imperative subject, and no trailing period. Keep it to at most 72 characters including the prefix.
+- When writing in English, keep it simple and plain: common words, direct phrasing, short sentences. Prefer "Fix crash when the buffer is empty" over "Remediate the anomalous termination occurring upon buffer vacancy". The language per remote comes from `shared/instructions/language.md` and the overlay's git identity memory.
 - Name the result and affected condition. Avoid vague subjects such as `Fix bug` or `Update code`.
 - Use one stable module or feature name as scope; omit it when no useful scope applies. Put issue references in the footer.
 - Select the type by purpose, not file extension or line count. Treat the additional types below as local conventions, not a mandatory Conventional Commits list.
@@ -165,14 +166,6 @@ Never build a commit message from `-m` flags — not even a single-line one. git
 
 ## Destructive operations require explicit user approval
 
-Never invoke any of these without the user explicitly asking for them in the current session:
-
-- `git reset` (any mode, especially `--hard`)
-- `git restore` (any flags)
-- `git checkout -- <file>` or `git checkout <ref> -- <file>`
-- `git clean`
-- `git rebase`, `git commit --amend` on already-pushed commits
-- `git push --force` or `--force-with-lease`
-- `git branch -D`, `git tag -d`
+The list of destructive git operations and the approval rule live in one place: the Destructive operations section of `shared/instructions/git-workflow.md`, which every agent loads. In short: `git reset` in any mode, `git restore` on the working tree, file-level `git checkout`, `git clean`, `git rebase`, amending pushed commits, force pushes, `git branch -D` and `git tag -d` each need the user's explicit approval for that run, every time. `git restore --staged <path>` alone only unstages, so it is fine for undoing your own staging.
 
 If one of these seems necessary, stop and ask the user, naming the exact command and the files or refs it would affect. Wait for an explicit go-ahead before running it.
