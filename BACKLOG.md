@@ -21,7 +21,9 @@ Outstanding work for the unified agents harness and its companion MCP package. I
       `constraint-driven-development`): a diff-scoped check that flags
       weakened quality bars — new `NOLINT`, `#pragma GCC diagnostic ignored`,
       `-Wno-*`, `cppcheck-suppress`, `shellcheck disable`, `INSANE_SKIP`,
-      `ERROR_QA` → `WARN_QA`, dropped `-Werror`, skipped or deleted tests,
+      `ERROR_QA` → `WARN_QA`, dropped `-Werror`; `eslint-disable`,
+      `@ts-ignore`, `@ts-expect-error`, `# noqa`, `# type: ignore`, loosened
+      `tsconfig` strictness; skipped, focused (`.only`) or deleted tests,
       removed assertions. Python script with exit codes 0 clean / 1 violation /
       2 could not run ("never let a 2 read as a 0"); tests in Docker.
 - [ ] Korean-aware trigger evals for `universal/skills`: positive and
