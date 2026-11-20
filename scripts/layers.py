@@ -20,12 +20,18 @@ BASE_PRIORITY = 0
 BASE_MANIFEST_REL = "layer.json"
 
 # How a layer's files reach the view directories the tools read.
-#   inplace: they are already there (the base)
-#   symlink: each file, or each skill directory, is symlinked in (overlays)
+#   inplace:  they are already there (the base)
+#   symlink:  each file, or each skill directory, is symlinked in from the
+#             overlay clone (overlays/<alias>/memory/x.md and so on)
+#   checkout: the overlay clone's worktree is the harness root, so its view
+#             files are real files in the view directories, tracked in place
+#             by the overlay's own git (docs/overlay.md)
 APPLY_INPLACE = "inplace"
 APPLY_SYMLINK = "symlink"
-# What an overlay manifest may declare as "apply"; the default is symlink.
-OVERLAY_APPLY_MODES = (APPLY_SYMLINK,)
+APPLY_CHECKOUT = "checkout"
+# What an overlay may use. Without an "apply" key in its manifest, the clone's
+# layout decides (overlay.Overlay.apply_mode).
+OVERLAY_APPLY_MODES = (APPLY_SYMLINK, APPLY_CHECKOUT)
 
 # Overlay-relative directory -> the view directory the base and the overlays fill.
 VIEW_DIRS = {

@@ -148,12 +148,19 @@ def overlay_commit(
     if not (root / "overlay.json").is_file():
         return {"ok": False, "error": f"{alias} is not a cloned overlay"}
 
-    selected = paths or ["-A"]
+    # A checkout-mode overlay's worktree is the harness root: `git add -A` there
+    # would take in the whole base repo. Stage only its tracked changes unless
+    # paths are named, and accept named paths in the view dirs too.
+    checkout = _checkout_clone(repo_root, root)
+    allowed = [root.resolve()]
+    if checkout:
+        allowed += [(repo_root / directory).resolve() for directory, _ in layout.CONTENT_KINDS.values()]
+    selected = paths or (["-u"] if checkout else ["-A"])
     for entry in selected:
-        if entry == "-A":
+        if entry in ("-A", "-u"):
             continue
         resolved = (root / entry).resolve()
-        if not str(resolved).startswith(str(root.resolve())):
+        if not any(resolved == top or str(resolved).startswith(str(top) + "/") for top in allowed):
             return {"ok": False, "error": f"path escapes the overlay: {entry}"}
 
     staged = git(["add", *selected], cwd=root)
@@ -183,6 +190,12 @@ def overlay_commit(
     if identity:
         payload["error"] = identity
     return payload
+
+
+def _checkout_clone(repo_root: Path, root: Path) -> bool:
+    """True when the overlay clone's worktree is the harness root (checkout mode)."""
+    top = git(["rev-parse", "--show-toplevel"], cwd=root)
+    return bool(top.get("ok")) and Path(top.get("stdout", "").strip()).resolve() == repo_root.resolve()
 
 
 def _staged_local_files(root: Path) -> list[str] | None:

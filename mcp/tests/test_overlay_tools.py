@@ -107,6 +107,28 @@ class OverlayToolTests(HarnessTestCase):
         self.assertFalse(clean["ok"])
         self.assertIn("nothing staged", clean["error"])
 
+    def test_commit_in_a_checkout_overlay_takes_only_its_tracked_changes(self):
+        # A checkout-mode clone's worktree is the harness root, so `git add -A`
+        # there would take in the base repo's files too.
+        clone = self.repo / "overlays" / "co"
+        clone.mkdir(parents=True)
+        _git(clone, "init", "-q", "-b", "main")
+        _git(clone, "config", "core.worktree", "../../..")
+        _git(clone, "config", "status.showUntrackedFiles", "no")
+        (clone / "overlay.json").write_text(json.dumps({"name": "co", "priority": 70}))
+        (self.repo / "shared" / "memory" / "co.md").write_text("one\n")
+        _git(clone, "add", "-f", "overlay.json", "../../shared/memory/co.md")
+        _git(clone, "-c", "user.name=t", "-c", "user.email=t@e", "commit", "-qm", "co")
+        (self.repo / "shared" / "memory" / "co.md").write_text("two\n")
+        (self.repo / "stray.md").write_text("not the overlay's\n")
+
+        result = self.overlay.overlay_commit("co", "edit", repo_path=str(self.repo))
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["files"], ["shared/memory/co.md"])
+        refused = self.overlay.overlay_commit("co", "x", paths=["../../stray.md"], repo_path=str(self.repo))
+        self.assertFalse(refused["ok"])
+        self.assertIn("escapes", refused["error"])
+
     def test_commit_refuses_a_path_outside_the_overlay(self):
         result = self.overlay.overlay_commit(
             "work", "sneaky", paths=["../../shared/memory"], repo_path=str(self.repo)

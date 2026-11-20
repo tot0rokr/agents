@@ -5,7 +5,9 @@ anything writes, stages or renders:
 
     base source     tracked, hand-edited, public          -> write, commit
     artifact        untracked, produced by a render       -> render only
-    overlay-owned   a symlink into overlays/<alias>/      -> the overlay's repo
+    overlay-owned   a symlink into overlays/<alias>/, or  -> the overlay's repo
+                    a file a checkout-mode overlay tracks
+                    in place (recorded in applied.local.json)
 
 Every tool asks this module rather than carrying its own path list, because
 the last time those lists were duplicated they drifted apart.
@@ -106,6 +108,23 @@ def applied_links(repo_root: Path) -> dict[str, str]:
     }
 
 
+def applied_owner(repo_root: Path, rel_path: str) -> str | None:
+    """The overlay a path comes from, by the applied record.
+
+    A record names a file, or a whole skill directory; a path inside that
+    directory belongs to the same overlay, whether the directory is a symlink
+    or a checkout overlay's real directory.
+    """
+    rel = normalize(rel_path)
+    links = applied_links(repo_root)
+    if rel in links:
+        return links[rel]
+    for link, alias in links.items():
+        if rel.startswith(link.rstrip("/") + "/"):
+            return alias
+    return None
+
+
 def registered_overlays(repo_root: Path) -> list[dict]:
     data = read_json(repo_root / REGISTRY_REL)
     entries = [e for e in data.get("overlays", []) if isinstance(e, dict)]
@@ -132,7 +151,7 @@ def classify(repo_root: Path, rel_path: str) -> str:
         return "artifact"
     if rel.startswith(OVERLAYS_DIR + "/"):
         return "overlay_owned"
-    if rel in applied_links(repo_root):
+    if applied_owner(repo_root, rel) is not None:
         return "overlay_owned"
 
     path = repo_root / rel
@@ -156,7 +175,7 @@ def classify(repo_root: Path, rel_path: str) -> str:
 
 def provenance(repo_root: Path, rel_path: str) -> dict:
     """Who supplies this path: the base repo, or one of the overlays."""
-    alias = applied_links(repo_root).get(normalize(rel_path))
+    alias = applied_owner(repo_root, rel_path)
     if alias:
         return {"kind": "overlay", "alias": alias}
 

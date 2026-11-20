@@ -80,6 +80,21 @@ class ClassifyTests(HarnessTestCase):
         links = self.layout.applied_links(self.repo)
         self.assertEqual(links.get("shared/memory/secret_host.md"), "work")
 
+    def test_a_file_inside_a_recorded_skill_dir_belongs_to_its_overlay(self):
+        # A checkout-mode overlay records each skill as one real directory; a
+        # file inside it is the overlay's too, not base source.
+        applied = json.loads((self.repo / self.layout.APPLIED_REL).read_text())
+        applied["links"].append(
+            {"alias": "work", "link": "universal/skills/tool", "source": "universal/skills/tool", "mode": "checkout"}
+        )
+        (self.repo / self.layout.APPLIED_REL).write_text(json.dumps(applied))
+        (self.repo / "universal/skills/tool").mkdir(parents=True)
+        (self.repo / "universal/skills/tool/SKILL.md").write_text("---\nname: tool\n---\n")
+        rel = "universal/skills/tool/SKILL.md"
+        self.assertEqual(self.layout.classify(self.repo, rel), "overlay_owned")
+        self.assertEqual(self.layout.provenance(self.repo, rel), {"kind": "overlay", "alias": "work"})
+        self.assertEqual(self.layout.classify(self.repo, "universal/skills/toolbox/SKILL.md"), "base_source")
+
     def test_supports_overlays(self):
         self.assertTrue(self.layout.supports_overlays(self.repo))
 
