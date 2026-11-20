@@ -153,6 +153,10 @@ else
   fork_name="$base#$((n + 1))"
 fi
 cmd=("${launcher[@]}" "${carry[@]}" --resume "$src_sid" --fork-session --name "$fork_name")
+# Where the machine has a claude-scope wrapper (memory-capped scope + choom, the one the `claude`
+# shell function uses), start the fork in it too: a launcher run by path would skip it.
+scope=$(command -v claude-scope 2>/dev/null) || { [[ -x "$HOME/.local/bin/claude-scope" ]] && scope="$HOME/.local/bin/claude-scope"; }
+[[ -n "${scope:-}" ]] && cmd=("$scope" "${cmd[@]}")
 
 # If the fork dies at once (say the session cannot be resumed), keep the window
 # open long enough to read why instead of letting it vanish.
