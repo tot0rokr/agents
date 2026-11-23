@@ -205,6 +205,88 @@ PY
 echo "$leak_report"
 
 echo
+echo "== tracked per-tool configs match a fresh render =="
+# render-mcp.sh and render-gemini-commands.sh write tracked files and
+# ~/.claude.json, so they run here on copies under a temporary HOME and only
+# the tracked outputs are compared. The copies hold the base's own commands
+# only: the tracked Gemini commands are public.
+if [[ ! -f "$REPO_ROOT/shared/mcp/servers.json" ]]; then
+  echo "SKIP  shared/mcp/servers.json not rendered yet — run scripts/render_settings.py"
+elif ! command -v jq >/dev/null 2>&1; then
+  echo "WARN  jq not installed, so the render cannot be repeated"
+else
+  drift_dir="$(mktemp -d "${TMPDIR:-/tmp}/doctor-render.XXXXXX")"
+  mkdir -p "$drift_dir/home" "$drift_dir/scripts" "$drift_dir/base/mcp" "$drift_dir/shared/mcp" \
+    "$drift_dir/shared/commands" "$drift_dir/opencode" "$drift_dir/gemini"
+  cp "$REPO_ROOT/scripts/render-mcp.sh" "$REPO_ROOT/scripts/render-gemini-commands.sh" "$drift_dir/scripts/"
+  [[ -f "$REPO_ROOT/base/mcp/servers.json" ]] && cp "$REPO_ROOT/base/mcp/servers.json" "$drift_dir/base/mcp/"
+  cp "$REPO_ROOT/shared/mcp/servers.json" "$drift_dir/shared/mcp/"
+  cp "$REPO_ROOT/opencode/opencode.json" "$drift_dir/opencode/"
+  cp "$REPO_ROOT/gemini/settings.json" "$drift_dir/gemini/"
+  cp -r "$REPO_ROOT/gemini/commands" "$drift_dir/gemini/"
+  while IFS= read -r -d '' rel; do
+    mkdir -p "$drift_dir/$(dirname "$rel")"
+    cp "$REPO_ROOT/$rel" "$drift_dir/$rel"
+  done < <(git -C "$REPO_ROOT" ls-files -z -- shared/commands)
+  if (HOME="$drift_dir/home" bash "$drift_dir/scripts/render-mcp.sh" \
+      && bash "$drift_dir/scripts/render-gemini-commands.sh") >/dev/null 2>&1; then
+    drifted=()
+    cmp -s "$drift_dir/opencode/opencode.json" "$REPO_ROOT/opencode/opencode.json" || drifted+=(opencode/opencode.json)
+    cmp -s "$drift_dir/gemini/settings.json" "$REPO_ROOT/gemini/settings.json" || drifted+=(gemini/settings.json)
+    diff -rq "$drift_dir/gemini/commands" "$REPO_ROOT/gemini/commands" >/dev/null 2>&1 || drifted+=(gemini/commands/)
+    if ((${#drifted[@]})); then
+      for rel in "${drifted[@]}"; do
+        echo "FAIL  $rel differs from a fresh render — run scripts/render-mcp.sh and scripts/render-gemini-commands.sh"
+      done
+      fail=1
+    else
+      echo "OK    opencode/opencode.json, gemini/settings.json and gemini/commands/ match a fresh render"
+    fi
+  else
+    echo "FAIL  the render scripts failed on copies of this repo"
+    fail=1
+  fi
+  case "$drift_dir" in
+    "${TMPDIR:-/tmp}"/doctor-render.?*) rm -rf -- "$drift_dir" ;;
+  esac
+fi
+
+echo
+echo "== skills: each SKILL.md names its own directory =="
+skills_report="$(python3 - "$REPO_ROOT/universal/skills" <<'PY'
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1])
+# synced/ is Claude Code's cache of claude.ai skills, .trash/ its sync trash.
+SKIP = {"synced", ".trash"}
+bad = checked = 0
+for skill in sorted(p for p in root.iterdir() if p.is_dir() and p.name not in SKIP):
+    manifest = skill / "SKILL.md"
+    if not manifest.is_file():
+        print(f"WARN  universal/skills/{skill.name} has no SKILL.md")
+        continue
+    lines = manifest.read_text(errors="replace").splitlines()
+    name = None
+    if lines and lines[0].strip() == "---":
+        for line in lines[1:]:
+            if line.strip() == "---":
+                break
+            if line.startswith("name:"):
+                name = line.split(":", 1)[1].strip().strip("\"'")
+                break
+    checked += 1
+    if name != skill.name:
+        print(f"FAIL  universal/skills/{skill.name}/SKILL.md declares name {name!r}; Claude Code finds a skill by its directory")
+        bad += 1
+if not bad:
+    print(f"OK    {checked} skill(s), each SKILL.md names its directory")
+raise SystemExit(1 if bad else 0)
+PY
+)" || fail=1
+echo "$skills_report"
+
+echo
 echo "== registered harness MCP entry =="
 claude_json="$HOME/.claude.json"
 if [[ -f "$claude_json" ]]; then
