@@ -58,21 +58,21 @@ A file the base repo itself provides is the one exception: an overlay may not sh
 
 ## The base is layer 0
 
-The base repo is a layer too, with priority 0, under every overlay (`scripts/layers.py`). It has the parts an overlay has, but keeps them where the tools read them, so applying it links nothing:
+The base repo is a layer too, with priority 0, under every overlay (`scripts/layers.py`). It has the parts an overlay has. The view files stay where the tools read them, so applying the base links nothing; the files only a render reads sit under `base/`, with the names an overlay gives them under `overlays/<alias>/`:
 
 ```
 overlay part           where the base keeps it
-overlay.json           layer.json (repo root)
+overlay.json           base/overlay.json
+memory/MEMORY.md       base/memory/MEMORY.md
+settings/claude.json   base/settings/claude.json
+settings/codex.toml    base/settings/codex.toml
+mcp/servers.json       base/mcp/servers.json
 memory/ instructions/  shared/memory/, shared/instructions/
 commands/ subagents/   shared/commands/, shared/subagents/
 skills/<name>/         universal/skills/<name>/
-memory/MEMORY.md       shared/memory/MEMORY.base.md
-settings/claude.json   claude/settings.base.json
-settings/codex.toml    codex/config.base.toml
-mcp/servers.json       shared/mcp/servers.base.json
 ```
 
-`overlay.py list` shows it as the first row, and `setup` and `status` run its `layer.json` setup steps before any overlay's (`overlay.py setup base --only <id>`). The alias `base` is reserved, so no overlay can be registered under it. A base step is a `run` or `manual` step only: the agent guardrail forbids touching the base repo's tracked files.
+`overlay.py list` shows it as the first row, and `setup` and `status` run its `base/overlay.json` setup steps before any overlay's (`overlay.py setup base --only <id>`). The alias `base` is reserved, so no overlay can be registered under it. A base step is a `run` or `manual` step only: the agent guardrail forbids touching the base repo's tracked files.
 
 An overlay's files reach the base tree in one of two modes: `symlink` (described next, the default) or `checkout` (see "Checkout mode" below). An `"apply"` key in `overlay.json` names the mode; without one, the clone's layout decides. Any other value makes `install` refuse the overlay. `overlay.py list` shows each overlay's mode.
 
@@ -112,8 +112,8 @@ Moving an overlay to checkout mode: make the restructure commit in a scratch clo
 
 A new file in a view directory belongs to nobody until someone decides: the base (public) or an overlay (private). `shared/AGENTS.md`, "Where new content goes", says how to decide. Three things keep that decision from being skipped:
 
-- `overlay.py status` lists every file or skill directory in the view directories that no repo tracks as `UNFILED`. The memory index files (`MEMORY.md`, `MEMORY.base.md`) never count.
-- `overlay.py file <path> --to base|<alias>` stages it in the chosen repo. For a checkout overlay it stays in place and joins the exclude block and `.ignore`; for a symlink overlay it moves under `overlays/<alias>/` and is linked back. A memory's index line moves from the rendered index to the owner's index source (`shared/memory/MEMORY.base.md`, or `overlays/<alias>/memory/MEMORY.md`; with `--host <host>`, the overlay's `memory/hosts/<host>.md`, so only that machine indexes it). Nothing is committed: review and commit in that repo.
+- `overlay.py status` lists every file or skill directory in the view directories that no repo tracks as `UNFILED`. The rendered memory index, `MEMORY.md`, never counts.
+- `overlay.py file <path> --to base|<alias>` stages it in the chosen repo. For a checkout overlay it stays in place and joins the exclude block and `.ignore`; for a symlink overlay it moves under `overlays/<alias>/` and is linked back. A memory's index line moves from the rendered index to the owner's index source (`base/memory/MEMORY.md`, or `overlays/<alias>/memory/MEMORY.md`; with `--host <host>`, the overlay's `memory/hosts/<host>.md`, so only that machine indexes it). Nothing is committed: review and commit in that repo.
 - `overlay.py install` puts a pre-commit hook in the base repo (`overlay.py check-staged`) that refuses a commit taking in a path an overlay provides, or anything inside a registered overlay's clone. A hook someone else wrote is never overwritten; install warns instead.
 
 To undo a conversion: restore `.git/config` and `.git/index` from the saved directory, `git reset --soft` to the saved HEAD, move the view files back under `overlays/<alias>/`, and run `overlay.py install <alias>` to recreate the symlinks.
@@ -126,7 +126,7 @@ Claude Code reads exactly one user-level settings file, `~/.claude/settings.json
 
 So the file is split:
 
-- `claude/settings.base.json` — tracked, public-safe, hand-edited
+- `base/settings/claude.json` — tracked, public-safe, hand-edited
 - `claude/settings.json` — build artifact, gitignored
 - `scripts/render_settings.py` — produces the artifact
 
@@ -142,17 +142,17 @@ Those files hold this machine's credentials, and git and editors write them at t
 
 The MCP tools `settings_set`, `mcp_server_set` and `mcp_server_remove` write these files with the target `overlay:<alias>:local`, and `settings_get` reports keys from them as `overlay:<alias>:local`.
 
-Editing `claude/settings.json` by hand still works — the edit survives as unmanaged state — but it will not be tracked. Anything you want tracked belongs in `settings.base.json`; anything environment-specific belongs in an overlay.
+Editing `claude/settings.json` by hand still works — the edit survives as unmanaged state — but it will not be tracked. Anything you want tracked belongs in `base/settings/claude.json`; anything environment-specific belongs in an overlay.
 
-The memory index gets the same split. `shared/memory/MEMORY.base.md` is tracked; `shared/memory/MEMORY.md` is rendered from it, then each enabled overlay's `memory/MEMORY.md` by ascending priority, then every line the live file has that no source claims. Agents append index lines to the live file at runtime, and that last pass is what keeps them.
+The memory index gets the same split. `base/memory/MEMORY.md` is tracked; `shared/memory/MEMORY.md` is rendered from it, then each enabled overlay's `memory/MEMORY.md` by ascending priority, then every line the live file has that no source claims. Agents append index lines to the live file at runtime, and that last pass is what keeps them.
 
-A memory an agent writes therefore lands in `shared/memory/` as an untracked file, with its index line carried only in the rendered `MEMORY.md`. It stays on this machine until someone files it: into the base (the file plus a line in `MEMORY.base.md`) when it is safe to publish, or into an overlay (the file plus a line in that overlay's `memory/MEMORY.md`) when it is not. A memory that only matters inside one project can go to that project's own `~/.claude/projects/<slug>/memory/` instead, provided that slug is not linked to `shared/memory`; only Claude Code sessions started in that directory see it, and no repo tracks it.
+A memory an agent writes therefore lands in `shared/memory/` as an untracked file, with its index line carried only in the rendered `MEMORY.md`. It stays on this machine until someone files it: into the base (the file plus a line in `base/memory/MEMORY.md`) when it is safe to publish, or into an overlay (the file plus a line in that overlay's `memory/MEMORY.md`) when it is not. A memory that only matters inside one project can go to that project's own `~/.claude/projects/<slug>/memory/` instead, provided that slug is not linked to `shared/memory`; only Claude Code sessions started in that directory see it, and no repo tracks it.
 
 ### Codex
 
 Codex has the same problem in TOML: it writes into `~/.codex/config.toml` whenever you trust a directory, pick a model or dismiss a notice, and a trusted directory is an absolute path on one machine. So that file is split too:
 
-- `codex/config.base.toml` — tracked, public-safe, hand-edited
+- `base/settings/codex.toml` — tracked, public-safe, hand-edited
 - `codex/config.toml` — build artifact, gitignored, mode 600
 - `scripts/render_settings.py` — produces it in the same pass as the others
 
@@ -229,7 +229,7 @@ What does *not* go into an overlay is the raw transcript. `~/.claude/projects` i
 
 ## Setup steps
 
-Some of an environment cannot be expressed as files: a credential file the MCP server reads, a systemd unit, a `gh` login, a password that belongs in the environment rather than in any repo. An overlay declares those as `setup` steps in its manifest, and `overlay.py setup` works through them. The base declares its own in `layer.json` (for one, the `termaid` CLI), and they come first.
+Some of an environment cannot be expressed as files: a credential file the MCP server reads, a systemd unit, a `gh` login, a password that belongs in the environment rather than in any repo. An overlay declares those as `setup` steps in its manifest, and `overlay.py setup` works through them. The base declares its own in `base/overlay.json` (for one, the `termaid` CLI), and they come first.
 
 ```json
 {
@@ -304,11 +304,11 @@ For a work environment, host it on the employer's git server. Internal details n
 
 ## MCP servers
 
-`shared/mcp/servers.json` is rendered the same way, from `shared/mcp/servers.base.json` plus each overlay's `mcp/servers.json`. An internal MCP server — one whose URL or command names an employer host — belongs in a private overlay, never in the base.
+`shared/mcp/servers.json` is rendered the same way, from `base/mcp/servers.json` plus each overlay's `mcp/servers.json`. An internal MCP server — one whose URL or command names an employer host — belongs in a private overlay, never in the base.
 
 Nothing writes `servers.json` at runtime, so it needs no unmanaged-key preservation: removing an overlay removes its servers cleanly. It carries the overlays' servers with their `headers` and `env`, and a value an overlay substitutes from `vars.local.json`, or sets in `servers.local.json`, lands in it verbatim, so it is written with mode 600 like `codex/config.toml`.
 
-`render-mcp.sh` reads two sources. Only `~/.claude.json`, which lives outside the repo, gets the rendered set with overlay servers; the tracked per-tool configs (`opencode/opencode.json`, `gemini/settings.json`) are rendered from `servers.base.json` alone, and `doctor.sh` fails if an overlay-only server shows up in one of them. Codex is not in that list: `codex/config.toml` is an untracked artifact, so `render_settings.py` writes the overlay-merged set into it, leaving out any server Codex cannot run (SSE, or one with neither `url` nor `command`), because one bad server table makes Codex reject the whole file. Into `~/.claude.json` it merges per server, so a value that exists only on this machine — a password left out of every repo — and a server registered there by hand both survive the render.
+`render-mcp.sh` reads two sources. Only `~/.claude.json`, which lives outside the repo, gets the rendered set with overlay servers; the tracked per-tool configs (`opencode/opencode.json`, `gemini/settings.json`) are rendered from `base/mcp/servers.json` alone, and `doctor.sh` fails if an overlay-only server shows up in one of them. Codex is not in that list: `codex/config.toml` is an untracked artifact, so `render_settings.py` writes the overlay-merged set into it, leaving out any server Codex cannot run (SSE, or one with neither `url` nor `command`), because one bad server table makes Codex reject the whole file. Into `~/.claude.json` it merges per server, so a value that exists only on this machine — a password left out of every repo — and a server registered there by hand both survive the render.
 
 Tokens and passwords do not belong in an overlay either. Reference them from the environment in the server definition, keep the values in your secret store, and export them where the tools start their MCP servers. Three shapes work for both tools:
 
@@ -335,11 +335,11 @@ Hooks in the live file are merged, not replaced. Tools add hooks to `settings.js
 
 The marker exists in JSON fragments only. In a TOML fragment (`settings/codex.toml`, `settings/codex.local.toml`) every key is taken as written, because Codex keys are paths and names: `[projects."${CLAUDE_HOME}/c++"]` trusts `c++`, not an append to `c+`. A list a TOML fragment sets replaces the one before it.
 
-A key some source claims is restored from that source on the next render. Change `model` by hand in the rendered `settings.json` and the next render puts the base's value back — that is how a tracked setting stays tracked. Change it in `settings.base.json` or in an overlay instead. Keys no source claims, which is most of what Claude Code writes at runtime, are carried across untouched. That holds inside an object too: remove the only overlay that sets `enabledPlugins` and its plugins go, while the ones Claude Code installed stay. `statusLine` and the other objects listed in `CLAUDE_ATOMIC` are the exception and go whole, since Claude Code skips the entire settings file over one that lacks its `type` or `command`.
+A key some source claims is restored from that source on the next render. Change `model` by hand in the rendered `settings.json` and the next render puts the base's value back — that is how a tracked setting stays tracked. Change it in `base/settings/claude.json` or in an overlay instead. Keys no source claims, which is most of what Claude Code writes at runtime, are carried across untouched. That holds inside an object too: remove the only overlay that sets `enabledPlugins` and its plugins go, while the ones Claude Code installed stay. `statusLine` and the other objects listed in `CLAUDE_ATOMIC` are the exception and go whole, since Claude Code skips the entire settings file over one that lacks its `type` or `command`.
 
 Editing a rendered artifact is always temporary. `claude/settings.json`, `shared/mcp/servers.json`, `shared/memory/MEMORY.md`, `codex/config.toml` and `codex/AGENTS.override.md` are outputs; a server added straight into `servers.json` disappears on the next render. Edit the `.base.` file or the overlay fragment.
 
-One rough edge worth knowing: if you edit a *base* line of `shared/memory/MEMORY.md` in place, the render keeps your edited line — it looks like a line no source claims — and restores the original alongside it, so the index ends up with both. Edit `MEMORY.base.md` or the overlay's fragment instead.
+One rough edge worth knowing: if you edit a *base* line of `shared/memory/MEMORY.md` in place, the render keeps your edited line — it looks like a line no source claims — and restores the original alongside it, so the index ends up with both. Edit `base/memory/MEMORY.md` or the overlay's fragment instead.
 
 ## Known gaps
 

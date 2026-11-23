@@ -6,8 +6,8 @@ metadata:
 ---
 
 termaid (https://github.com/fasouto/termaid, MIT) draws Mermaid as Unicode box drawing or plain ASCII. The harness base installs two parts:
-- The Claude Code plugin `termaid@termaid`, from the marketplace `fasouto/termaid`, enabled in `claude/settings.base.json`. Its `MessageDisplay` hook replaces each ```mermaid block in Claude's reply with the drawing, fitted to the pane width. Only the screen changes; the transcript keeps the Mermaid source.
-- The CLI `termaid`, which the base setup step `termaid-cli` (in `layer.json`) installs with `uv tool install termaid==0.12.0`. Every agent can run it.
+- The Claude Code plugin `termaid@termaid`, from the marketplace `fasouto/termaid`, enabled in `base/settings/claude.json`. Its `MessageDisplay` hook replaces each ```mermaid block in Claude's reply with the drawing, fitted to the pane width. Only the screen changes; the transcript keeps the Mermaid source.
+- The CLI `termaid`, which the base setup step `termaid-cli` (in `base/overlay.json`) installs with `uv tool install termaid==0.12.0`. Every agent can run it.
 
 How to show a diagram:
 - **In a Claude Code reply:** write a ```mermaid code block and stop there. Don't also run termaid on it and paste the output, or the diagram shows twice. Don't hand-draw box art in a reply.

@@ -59,6 +59,6 @@ Decide who owns a new memory, skill, instruction, command, subagent, settings fr
 | is a credential | no git repo at all: a machine-local file or an environment variable |
 
 - When unsure, use an overlay (private), never the base.
-- File it with `scripts/overlay.py file <path> --to base|<alias>`: it stages the file in the right repo and moves its index line to the right index source. Commit afterwards, in that repo. By hand, a memory's index line goes in `shared/memory/MEMORY.base.md` for the base or `overlays/<alias>/memory/MEMORY.md` for an overlay; `shared/memory/MEMORY.md` is rendered, so a line added there is not filed.
+- File it with `scripts/overlay.py file <path> --to base|<alias>`: it stages the file in the right repo and moves its index line to the right index source. Commit afterwards, in that repo. By hand, a memory's index line goes in `base/memory/MEMORY.md` for the base or `overlays/<alias>/memory/MEMORY.md` for an overlay; `shared/memory/MEMORY.md` is rendered, so a line added there is not filed.
 - `scripts/overlay.py status` lists anything in the view directories that nobody tracks as `UNFILED`.
 - Before committing to the base, read the diff for hostnames, IPs, internal URLs, user names and ticket IDs. A hook refuses a base commit of a path an overlay provides. See [docs/overlay.md](../docs/overlay.md).

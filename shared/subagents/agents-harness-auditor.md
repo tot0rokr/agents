@@ -24,11 +24,11 @@ Run these in order, fail fast on the first broken assumption:
    - Description is at least one sentence; flag empty or one-word descriptions.
 
 5. **BACKLOG.md staleness** — read `BACKLOG.md`. For each item marked `[x]`, spot-check whether the claim is still true:
-   - If it says "Linear MCP added" → verify `shared/mcp/servers.base.json` contains a linear entry.
+   - If it says "Linear MCP added" → verify `base/mcp/servers.json` contains a linear entry.
    - If it says "4 skills registered" → count actual SKILL.md files.
    - Flag any checked item that no longer matches reality.
 
-6. **Git hygiene** — `git status --short`. List uncommitted changes grouped by area (tool config, shared content, scripts, docs). If there are uncommitted changes to canonical sources (e.g. `shared/mcp/servers.base.json`) but no matching changes to rendered files, that's render drift; cross-reference with check 2.
+6. **Git hygiene** — `git status --short`. List uncommitted changes grouped by area (tool config, shared content, scripts, docs). If there are uncommitted changes to canonical sources (e.g. `base/mcp/servers.json`) but no matching changes to rendered files, that's render drift; cross-reference with check 2.
 
 ## Output
 

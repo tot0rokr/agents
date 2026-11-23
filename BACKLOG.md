@@ -7,7 +7,7 @@ Outstanding work for the unified agents harness and its companion MCP package. I
 - [x] `universal/skills/` — 4 registered (`bash-command-style`,
       `critical-file-safety`, `git-commit-workflow`, `fork-session`). Discoverable via
       `~/.claude/skills` and `~/.agents/skills`.
-- [x] `shared/mcp/servers.base.json` — Linear MCP (remote HTTP, OAuth 2.1).
+- [x] `base/mcp/servers.json` — Linear MCP (remote HTTP, OAuth 2.1).
       `render-mcp.sh` and, for Codex, `render_settings.py` handle remote vs
       stdio per tool.
 - [x] `shared/subagents/` — 3 sub-agents (Claude + OpenCode shared):
@@ -85,17 +85,17 @@ Outstanding work for the unified agents harness and its companion MCP package. I
 
 - [x] Overlay mechanism — `docs/overlay.md`, `scripts/overlay.py` (add/install/list/status/update/remove/init), `scripts/render_settings.py`, `templates/overlay-example/`. Markdown and skill drop-ins are symlinked from the overlay clone, JSON fragments are deep-merged, arbitrary paths go through the manifest's `links` map, `${VAR}` comes from the overlay's `vars.json`, and applied state lives in `overlays/*.local.json`.
 - [x] `claude/settings.json` and `shared/mcp/servers.json` are render artifacts and untracked — Claude Code writes `autoMode.environment` (employer hostnames, repo paths) straight into the settings file, which used to land in a public repo's staging area.
-- [ ] Move environment-specific content out of the base repo into private overlays: the `~/worklog` hooks now sitting in `settings.base.json`, anything else naming a machine or an employer.
+- [ ] Move environment-specific content out of the base repo into private overlays: the `~/worklog` hooks now sitting in `base/settings/claude.json`, anything else naming a machine or an employer.
 - [ ] Publish `agents-overlay-example` as its own public repo, and teach `overlay.py init` to start from a git URL as well as the in-tree template.
 - [x] Overlay tools in `integrated-harness-kit-mcp` — shipped in v1.0.0: `overlay_add` / `overlay_install` / `overlay_remove` / `overlay_setup` / `overlay_route` / `overlay_commit`, with overlay state folded into `status` and `audit_drift`.
 - [x] Setup steps — an overlay declares what its environment needs beyond files (credential files, daemons, logins) as `check` / `run` / `agent` / `manual` entries, and `overlay.py setup` works through them. Agent steps go to `claude -p` with a narrowed tool list and a guardrail prompt, or to a live session with `--interactive`. Nothing runs without `--yes`.
 - [ ] `overlay.py` unit tests — the full init/add/install/setup/status/update/remove path is only covered by manual scratch runs so far.
 - [x] `render-mcp.sh` used to replace `~/.claude.json`'s `mcpServers` wholesale, dropping a value that existed only on that machine and any server registered there by hand. It now merges per server, with the canonical source winning the keys it defines.
-- [x] `render-mcp.sh` is safe to run by hand again. It reads two sources now: the tracked per-tool configs come from `servers.base.json`, and only `~/.claude.json` gets the overlay-merged set. `doctor.sh` fails if an overlay-only server ever appears in one of the tracked files, so the guarantee is checked rather than assumed.
-- [x] Memory pointer lines have an overlay path. `shared/memory/MEMORY.md` is rendered from the tracked `MEMORY.base.md` plus each overlay's `memory/MEMORY.md` fragment, and lines agents append at runtime are carried over.
-- [x] Codex gets the same split. `codex/config.toml` is rendered from `codex/config.base.toml`, the overlay-merged MCP servers and each overlay's `settings/codex.toml`, keeps what Codex writes for itself, and is untracked with mode 600. `codex/AGENTS.override.md` inlines the instruction files `AGENTS.md` only links to, since Codex does not follow links.
+- [x] `render-mcp.sh` is safe to run by hand again. It reads two sources now: the tracked per-tool configs come from `base/mcp/servers.json`, and only `~/.claude.json` gets the overlay-merged set. `doctor.sh` fails if an overlay-only server ever appears in one of the tracked files, so the guarantee is checked rather than assumed.
+- [x] Memory pointer lines have an overlay path. `shared/memory/MEMORY.md` is rendered from the tracked `base/memory/MEMORY.md` plus each overlay's `memory/MEMORY.md` fragment, and lines agents append at runtime are carried over.
+- [x] Codex gets the same split. `codex/config.toml` is rendered from `base/settings/codex.toml`, the overlay-merged MCP servers and each overlay's `settings/codex.toml`, keeps what Codex writes for itself, and is untracked with mode 600. `codex/AGENTS.override.md` inlines the instruction files `AGENTS.md` only links to, since Codex does not follow links.
 - [ ] Gemini and OpenCode configs are still tracked and base-only, so neither gets overlay MCP servers. Same split as Codex.
-- [ ] `settings_get` / `settings_set` in the MCP package only know Claude's settings; teach them `codex/config.base.toml` and `settings/codex.toml`.
+- [ ] `settings_get` / `settings_set` in the MCP package only know Claude's settings; teach them `base/settings/codex.toml` and `settings/codex.toml`.
 - [ ] The MCP server mapping exists three times: jq in `render-mcp.sh`, Python in `render_settings.codex_mcp_servers`, and Python again in the MCP package's local render. Fold them into one.
 - [ ] Claude Code also loads only `@path` imports, not plain links, so `shared/AGENTS.md`'s `See [instructions/…]` lines leave the instruction files out of Claude's context too.
 - [ ] A Codex write can still slip between the render's last check and its rename of `codex/config.toml` (a window of microseconds; Codex takes no lock), and the reverse holds too: a Codex rename that lands after a render dropped a key brings the key back, and later renders then keep it as Codex's own. Keeping dropped paths in the state until a render sees them gone would close the second.
