@@ -4,9 +4,7 @@ Outstanding work for the unified agents harness and its companion MCP package. I
 
 ## Content to fill in
 
-- [x] `universal/skills/` — 4 registered (`bash-command-style`,
-      `critical-file-safety`, `git-commit-workflow`, `fork-session`). Discoverable via
-      `~/.claude/skills` and `~/.agents/skills`.
+- [x] `universal/skills/` — the canonical skill location, filled by the base and by every enabled overlay. Discoverable via `~/.claude/skills` and `~/.agents/skills`.
 - [x] `base/mcp/servers.json` — Linear MCP (remote HTTP, OAuth 2.1).
       `render-mcp.sh` and, for Codex, `render_settings.py` handle remote vs
       stdio per tool.
@@ -79,17 +77,18 @@ Outstanding work for the unified agents harness and its companion MCP package. I
       matching render where applicable; remove_* the inverse. 22 unittest
       cases; total package coverage: 55 cases.
 - [x] **v1.0.0** — caught the package up with the overlay split, and pruned it while doing so. New `layout.py` classifies every path as base source, render artifact or overlay-owned, and `repo_scripts.py` loads the repo's own `overlay.py` / `render_settings.py` instead of duplicating them. Redundant tools were merged: `harness_status`+`doctor` into `status(level)`, three listers into `list_content(kind)`, eight `add_*`/`remove_*` into `scaffold`/`remove_content`, `clone`+`install` into `bootstrap`. New: `capabilities`, `settings_get`/`settings_set` with per-key provenance, `mcp_server_set`/`mcp_server_remove`, the `overlay_*` family including `overlay_route` and `overlay_commit`, and the v0.5 maintenance set (`update`, `audit_drift`, `commit`) finally registered. `render` gained scopes so the public per-tool configs are rendered from base only. 127 unittest cases against a fixture repo that carries the real scripts and real overlays.
-- [ ] **v1.1** — `edit_memory` / `edit_instruction`. They have to resolve the symlink first: writing `shared/memory/<name>.md` on this machine silently edits an overlay's repo, so the tool must say which repo it dirtied and refuse unless the caller named the overlay.
+- [ ] **v1.1** — `edit_memory` / `edit_instruction`. A file in `shared/memory/` may belong to an overlay: a symlink into `overlays/<alias>/`, or a real file a checkout overlay tracks in place. Writing it silently edits that overlay's repo, so the tool must find the owner first (`layout.applied_owner`), say which repo it dirtied, and refuse unless the caller named the overlay.
 
 ## Overlays
 
 - [x] Overlay mechanism — `docs/overlay.md`, `scripts/overlay.py` (add/install/list/status/update/remove/init), `scripts/render_settings.py`, `templates/overlay-example/`. Markdown and skill drop-ins are symlinked from the overlay clone, JSON fragments are deep-merged, arbitrary paths go through the manifest's `links` map, `${VAR}` comes from the overlay's `vars.json`, and applied state lives in `overlays/*.local.json`.
 - [x] `claude/settings.json` and `shared/mcp/servers.json` are render artifacts and untracked — Claude Code writes `autoMode.environment` (employer hostnames, repo paths) straight into the settings file, which used to land in a public repo's staging area.
-- [ ] Move environment-specific content out of the base repo into private overlays: the `~/worklog` hooks now sitting in `base/settings/claude.json`, anything else naming a machine or an employer.
+- [x] Environment-specific content moved out of the base repo into private overlays: the `~/worklog` hooks, memories naming machines or an employer, and a home path in a README example. `shared/AGENTS.md` says where new content goes, and a pre-commit hook refuses a base commit of a path an overlay provides.
 - [ ] Publish `agents-overlay-example` as its own public repo, and teach `overlay.py init` to start from a git URL as well as the in-tree template.
 - [x] Overlay tools in `integrated-harness-kit-mcp` — shipped in v1.0.0: `overlay_add` / `overlay_install` / `overlay_remove` / `overlay_setup` / `overlay_route` / `overlay_commit`, with overlay state folded into `status` and `audit_drift`.
 - [x] Setup steps — an overlay declares what its environment needs beyond files (credential files, daemons, logins) as `check` / `run` / `agent` / `manual` entries, and `overlay.py setup` works through them. Agent steps go to `claude -p` with a narrowed tool list and a guardrail prompt, or to a live session with `--interactive`. Nothing runs without `--yes`.
-- [ ] `overlay.py` unit tests — the full init/add/install/setup/status/update/remove path is only covered by manual scratch runs so far.
+- [x] `overlay.py` unit tests — `scripts/test_layers.py` and `scripts/test_render_codex.py` cover init, add, install, setup, status, remove, convert and file against fixture repos.
+- [ ] `overlay.py update` has a single test (a symlink overlay whose upstream moved to the checkout layout stops and asks for `convert`); the plain fast-forward and a dirty clone are untested.
 - [x] `render-mcp.sh` used to replace `~/.claude.json`'s `mcpServers` wholesale, dropping a value that existed only on that machine and any server registered there by hand. It now merges per server, with the canonical source winning the keys it defines.
 - [x] `render-mcp.sh` is safe to run by hand again. It reads two sources now: the tracked per-tool configs come from `base/mcp/servers.json`, and only `~/.claude.json` gets the overlay-merged set. `doctor.sh` fails if an overlay-only server ever appears in one of the tracked files, so the guarantee is checked rather than assumed.
 - [x] Memory pointer lines have an overlay path. `shared/memory/MEMORY.md` is rendered from the tracked `base/memory/MEMORY.md` plus each overlay's `memory/MEMORY.md` fragment, and lines agents append at runtime are carried over.
@@ -97,11 +96,11 @@ Outstanding work for the unified agents harness and its companion MCP package. I
 - [ ] Gemini and OpenCode configs are still tracked and base-only, so neither gets overlay MCP servers. Same split as Codex.
 - [ ] `settings_get` / `settings_set` in the MCP package only know Claude's settings; teach them `base/settings/codex.toml` and `settings/codex.toml`.
 - [ ] The MCP server mapping exists three times: jq in `render-mcp.sh`, Python in `render_settings.codex_mcp_servers`, and Python again in the MCP package's local render. Fold them into one.
-- [ ] Claude Code also loads only `@path` imports, not plain links, so `shared/AGENTS.md`'s `See [instructions/…]` lines leave the instruction files out of Claude's context too.
+- [ ] Claude Code also loads only `@path` imports, not plain links, so `shared/AGENTS.md`'s `See [instructions/…]` lines leave the instruction files out of Claude's context too. Switching them to `@instructions/…` imports loads them in every session, at an estimated 7-9k tokens, and the Codex render then has to expand the imports as it inlines links today.
 - [ ] A Codex write can still slip between the render's last check and its rename of `codex/config.toml` (a window of microseconds; Codex takes no lock), and the reverse holds too: a Codex rename that lands after a render dropped a key brings the key back, and later renders then keep it as Codex's own. Keeping dropped paths in the state until a render sees them gone would close the second.
 - [ ] `claude/settings.json` and `MEMORY.md` have the same read-merge-replace window as Codex's config had; reuse `_read_live` / `_replace_unless_changed` for them.
 - [ ] `install.py` compares `~/.claude.json` keys against `global-config.base.json` with `!=`, so `0` passes for `false`; use `same_data`.
-- [ ] Memories agents write stay untracked until filed by hand. Agents write into `shared/memory/` directly, so a new memory is an untracked base file whose index line lives only in the rendered `MEMORY.md`. Nothing reminds anyone to move it into the base or an overlay; `doctor.sh` could list them.
+- [x] Memories agents write no longer go unnoticed. `overlay.py status` lists every file in the view directories that no repo tracks as `UNFILED`, and `overlay.py file <path> --to base|<alias> [--host <host>]` moves it and its index line to the owner.
 
 ## Publishing & CI
 
@@ -111,13 +110,12 @@ Outstanding work for the unified agents harness and its companion MCP package. I
 - [x] **`v0.3.1` published** — wheel + sdist on
       https://pypi.org/project/integrated-harness-kit-mcp/0.3.1/ and on
       TestPyPI. `uvx integrated-harness-kit-mcp` resolves end-to-end.
-- [ ] **`v1.0.0` publish** — supersedes the unpublished v0.4.0 build in `mcp/dist/`. Blocked on nothing but the release chore now that the container E2E passes.
+- [ ] **Publish the current version** (`mcp/pyproject.toml` says 1.2.0; PyPI still serves 0.3.1) so `uvx integrated-harness-kit-mcp` works again and machines stop running a package that predates overlays and `base/`. Blocked on nothing but the release chore now that the container E2E passes. Until then `INSTALLATION.md` Step 5 installs from the clone, which the document says plainly.
 - [x] **`mcp>=1.0` was an unbounded dependency and PyPI now serves 2.x**, where `FastMCP` was renamed to `MCPServer`. Every published version to date fails to start on a machine that resolves the dependency today — found by the container test, not by the unit tests, which never import `mcp`. `server.py` now imports whichever name exists, and the protocol E2E runs against both majors.
 - [x] **Docker fresh-env E2E test** — `test/e2e_v1.py` runs the whole story in the container built from `test/Dockerfile`: bootstrap on an empty `$HOME`, add a private overlay, settings and MCP writes, all three render scopes, routing, scaffolding, setup steps, drift and commits, then a scan of every tracked file for the overlay's freshly generated secret and hostname. 56 assertions. `test/e2e_mcp_protocol.py` additionally drives the installed server over stdio — 16 assertions, run against `mcp<2` and `mcp>=2`.
 - [ ] Run both container scripts in CI, not only by hand. They need docker and network, so they belong in a separate workflow from the unit tests.
 - [x] **`INSTALLATION.md` walkthrough, automated** — `test/walkthrough_install.sh` runs every command the document tells the agent to run, in a clean container, and checks each one: clone, install, doctor, the MCP entry and its verification command, then the overlay step. 19 assertions. The doc drifting from what works now fails a test.
 - [ ] **`INSTALLATION.md` with a real agent** — the script proves the commands work; it does not prove an agent reads the document and chooses them. Paste the file into a CLI agent inside the container, prompt "이대로 설치해줘", and confirm it reaches doctor: PASS and asks about overlays without being told.
-- [ ] Publish the current version so `uvx integrated-harness-kit-mcp` works again. Until then Step 5 installs from the clone, which the document now says plainly.
 - [ ] **GitHub Actions CI** that runs `python3 scripts/test_install.py`
       and `python3 -m unittest discover -s mcp/tests` on PR. Optional
       matrix over Python 3.10/3.11/3.12. Once green, extend with a
@@ -132,9 +130,7 @@ Outstanding work for the unified agents harness and its companion MCP package. I
 - [x] `shared/memory/user_git_identity.md` + the matching line in
       `shared/memory/MEMORY.md` — moved into the work overlay with its
       index line, so the work email never reaches this public repo.
-- [ ] `~/.claude.bak.20260512-183533` and
-      `~/.config/opencode.bak.20260512-183533` — remove after ~1 week
-      of stable use (currently retained as rollback insurance).
+- [x] The install's rollback copies of the old `~/.claude` and `~/.config/opencode` — removed after months of stable use.
 - [ ] `~/.pypirc` has the original, now-revoked PyPI token in its
       `[pypi]` section; the working `agents-publish` token is supplied
       via env var per session. Replace the `[pypi]` password with the
@@ -143,9 +139,7 @@ Outstanding work for the unified agents harness and its companion MCP package. I
 - [ ] `doctor.sh` improvement: validate every
       `universal/skills/*/SKILL.md` has a `name:` matching its directory
       name. Catches the most common Claude-discovery mistake.
-- [ ] `doctor.sh` improvement: run each `render-*.sh` against `mktemp`
-      copies and diff against the in-tree file. Flags render drift
-      before it lands in a commit.
+- [ ] `doctor.sh` improvement: run `render-mcp.sh` and `render-gemini-commands.sh` against `mktemp` copies and diff against the tracked `opencode/opencode.json`, `gemini/settings.json` and `gemini/commands/`. The `render_settings.py` artifacts are covered already: `overlay.py status` reports them as DRIFT and doctor warns.
 - [ ] Consider porting `doctor.sh` to a Python module under
       `scripts/doctor.py` so the MCP's `doctor` tool can call it
       in-process instead of via subprocess.

@@ -143,7 +143,7 @@ Edit `base/mcp/servers.json` (or an overlay's `mcp/servers.json` for a private o
     "filesystem": {
       "description": "Local filesystem access",
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/junho"]
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/dir"]
     }
   }
 }
