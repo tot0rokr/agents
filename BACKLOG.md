@@ -113,17 +113,8 @@ Outstanding work for the unified agents harness and its companion MCP package. I
 - [ ] **Publish the current version** (`mcp/pyproject.toml` says 1.2.0; PyPI still serves 0.3.1) so `uvx integrated-harness-kit-mcp` works again and machines stop running a package that predates overlays and `base/`. Blocked on nothing but the release chore now that the container E2E passes. Until then `INSTALLATION.md` Step 5 installs from the clone, which the document says plainly.
 - [x] **`mcp>=1.0` was an unbounded dependency and PyPI now serves 2.x**, where `FastMCP` was renamed to `MCPServer`. Every published version to date fails to start on a machine that resolves the dependency today — found by the container test, not by the unit tests, which never import `mcp`. `server.py` now imports whichever name exists, and the protocol E2E runs against both majors.
 - [x] **Docker fresh-env E2E test** — `test/e2e_v1.py` runs the whole story in the container built from `test/Dockerfile`: bootstrap on an empty `$HOME`, add a private overlay, settings and MCP writes, all three render scopes, routing, scaffolding, setup steps, drift and commits, then a scan of every tracked file for the overlay's freshly generated secret and hostname. 56 assertions. `test/e2e_mcp_protocol.py` additionally drives the installed server over stdio — 16 assertions, run against `mcp<2` and `mcp>=2`.
-- [ ] Run both container scripts in CI, not only by hand. They need docker and network, so they belong in a separate workflow from the unit tests.
 - [x] **`INSTALLATION.md` walkthrough, automated** — `test/walkthrough_install.sh` runs every command the document tells the agent to run, in a clean container, and checks each one: clone, install, doctor, the MCP entry and its verification command, then the overlay step. 19 assertions. The doc drifting from what works now fails a test.
-- [ ] **`INSTALLATION.md` with a real agent** — the script proves the commands work; it does not prove an agent reads the document and chooses them. Paste the file into a CLI agent inside the container, prompt "이대로 설치해줘", and confirm it reaches doctor: PASS and asks about overlays without being told.
-- [ ] **GitHub Actions CI** that runs `python3 scripts/test_install.py`
-      and `python3 -m unittest discover -s mcp/tests` on PR. Optional
-      matrix over Python 3.10/3.11/3.12. Once green, extend with a
-      `pypi-publish` workflow that builds + uploads on tag push (uses
-      repository secret `PYPI_API_TOKEN`) so we stop hand-rolling
-      `twine upload`.
-- [ ] **CHANGELOG.md** — bump versions there alongside tags. Currently
-      the release narrative lives only in commit messages.
+- Dropped on 2026-11-23 by the maintainer's choice: CI (GitHub Actions for the unit tests and the container scripts), a CHANGELOG, and replaying `INSTALLATION.md` with a real agent. The tests run by hand in Docker.
 
 ## Housekeeping
 
@@ -131,15 +122,10 @@ Outstanding work for the unified agents harness and its companion MCP package. I
       `shared/memory/MEMORY.md` — moved into the work overlay with its
       index line, so the work email never reaches this public repo.
 - [x] The install's rollback copies of the old `~/.claude` and `~/.config/opencode` — removed after months of stable use.
-- [ ] `~/.pypirc` has the original, now-revoked PyPI token in its
-      `[pypi]` section; the working `agents-publish` token is supplied
-      via env var per session. Replace the `[pypi]` password with the
-      live token (chmod 600 verified). Cleared by the maintainer's
-      explicit choice for now ("key는 그대로 둘래").
-- [ ] `doctor.sh` improvement: validate every
-      `universal/skills/*/SKILL.md` has a `name:` matching its directory
-      name. Catches the most common Claude-discovery mistake.
-- [ ] `doctor.sh` improvement: run `render-mcp.sh` and `render-gemini-commands.sh` against `mktemp` copies and diff against the tracked `opencode/opencode.json`, `gemini/settings.json` and `gemini/commands/`. The `render_settings.py` artifacts are covered already: `overlay.py status` reports them as DRIFT and doctor warns.
+- [x] `~/.pypirc` keeps the original, now-revoked PyPI token in its `[pypi]` section, by the maintainer's choice; the working `agents-publish` token is supplied via env var per session. A `twine upload` without that variable would read the dead token and be refused.
+- [x] `doctor.sh` checks that every `universal/skills/*/SKILL.md` names its own directory (FAIL), warns about a skill directory with no SKILL.md, and skips `synced/` (Claude Code's cache of claude.ai skills) and `.trash/`.
+- [x] `doctor.sh` re-runs `render-mcp.sh` and `render-gemini-commands.sh` on copies under a temporary HOME and fails when the tracked `opencode/opencode.json`, `gemini/settings.json` or `gemini/commands/` differs. It found `gemini/commands/` stale on its first run: `account-switcher.toml` had never been rendered and `commit.toml` predated the 2026-11-20 `commit.md`.
+- [ ] `render-gemini-commands.sh` renders every file in `shared/commands/`, so a command an overlay supplies there would land in the public `gemini/commands/`. Render from the base's tracked commands only, as `render-mcp.sh` renders the per-tool configs from `base/mcp/servers.json`; doctor's comparison already does.
 - [ ] Consider porting `doctor.sh` to a Python module under
       `scripts/doctor.py` so the MCP's `doctor` tool can call it
       in-process instead of via subprocess.
