@@ -163,9 +163,19 @@ def overlay_commit(
         if not any(resolved == top or str(resolved).startswith(str(top) + "/") for top in allowed):
             return {"ok": False, "error": f"path escapes the overlay: {entry}"}
 
-    staged = git(["add", *selected], cwd=root)
-    if not staged["ok"]:
-        return {"ok": False, "step": "add", **staged}
+    steps = [["add", *selected]]
+    if checkout and paths:
+        # The overlay shares the base's .gitignore, which ignores overlays/:
+        # a plain add refuses the overlay's own files even when tracked.
+        tracked, new = [], []
+        for entry in paths:
+            known = git(["ls-files", "--error-unmatch", "--", entry], cwd=root)
+            (tracked if known["ok"] else new).append(entry)
+        steps = ([["add", "-u", "--", *tracked]] if tracked else []) + ([["add", "-f", "--", *new]] if new else [])
+    for args in steps:
+        staged = git(args, cwd=root)
+        if not staged["ok"]:
+            return {"ok": False, "step": "add", **staged}
 
     local = _staged_local_files(root)
     if local is None:

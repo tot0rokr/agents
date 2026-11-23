@@ -129,6 +129,14 @@ class OverlayToolTests(HarnessTestCase):
         self.assertFalse(refused["ok"])
         self.assertIn("escapes", refused["error"])
 
+        # Its own files sit under overlays/, which the shared .gitignore ignores.
+        (self.repo / ".gitignore").write_text("overlays/\n")
+        (clone / "overlay.json").write_text(json.dumps({"name": "co", "priority": 71}))
+        (clone / "notes.md").write_text("new\n")
+        named = self.overlay.overlay_commit("co", "own files", paths=["overlay.json", "notes.md"], repo_path=str(self.repo))
+        self.assertTrue(named["ok"], named)
+        self.assertEqual(sorted(named["files"]), ["overlays/co/notes.md", "overlays/co/overlay.json"])
+
     def test_commit_refuses_a_path_outside_the_overlay(self):
         result = self.overlay.overlay_commit(
             "work", "sneaky", paths=["../../shared/memory"], repo_path=str(self.repo)
