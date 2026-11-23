@@ -13,6 +13,9 @@ both import it.
 from __future__ import annotations
 
 import json
+import os
+import re
+import socket
 from pathlib import Path
 
 BASE_ALIAS = "base"
@@ -49,6 +52,17 @@ BASE_PATHS = {
     "mcp/servers.json": "shared/mcp/servers.base.json",
     "memory/MEMORY.md": "shared/memory/MEMORY.base.md",
 }
+
+
+# An overlay's memory index lines for one machine only:
+# overlays/<alias>/memory/hosts/<host>.md joins the index on that host alone.
+MEMORY_HOSTS_REL = "memory/hosts"
+HOST_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+
+
+def current_host() -> str:
+    """This machine's short host name. AGENTS_HOST overrides it (tests, a renamed machine)."""
+    return os.environ.get("AGENTS_HOST") or socket.gethostname().split(".")[0]
 
 
 class BaseLayer:

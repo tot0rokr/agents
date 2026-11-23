@@ -753,13 +753,19 @@ def render_memory(repo_root: Path, write: bool = True) -> str:
 
 
 def _memory_fragments(repo_root: Path) -> list[str]:
+    """Each overlay's index fragment, then its lines for this machine only."""
+    from layers import HOST_RE, MEMORY_HOSTS_REL, current_host
     from overlay import enabled_overlays
 
+    host = current_host()
     out = []
     for entry in enabled_overlays(repo_root):
-        fragment = entry.path / MEMORY_FRAGMENT_REL
-        if fragment.is_file():
-            out.append(substitute(fragment.read_text(), entry.variables()))
+        fragments = [entry.path / MEMORY_FRAGMENT_REL]
+        if HOST_RE.match(host):
+            fragments.append(entry.path / MEMORY_HOSTS_REL / f"{host}.md")
+        for fragment in fragments:
+            if fragment.is_file():
+                out.append(substitute(fragment.read_text(), entry.variables()))
     return out
 
 

@@ -55,6 +55,7 @@ Decide who owns a new memory, skill, instruction, command, subagent, settings fr
 | holds in every project and names nothing environment-specific | the base, this repo, which is public |
 | names an employer's systems, hosts, internal repos, people or tickets | that environment's overlay; `scripts/overlay.py route` names it |
 | is about the user personally: identity, personal machines and accounts | the personal overlay |
+| holds on one machine only | the overlay of the environment that machine belongs to, with its index line in that overlay's `memory/hosts/<host>.md`, which joins the index on that machine alone (`overlay.py file <path> --to <alias> --host <host>`) |
 | is a credential | no git repo at all: a machine-local file or an environment variable |
 
 - When unsure, use an overlay (private), never the base.

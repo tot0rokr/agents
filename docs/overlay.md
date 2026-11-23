@@ -12,6 +12,8 @@ An overlay mirrors the base repo's content namespaces:
 overlay.json          # manifest: name, priority, description
 memory/*.md           → shared/memory/
 memory/MEMORY.md      → appended to shared/memory/MEMORY.md (index lines for the memories above)
+memory/hosts/<host>.md → appended right after it, only on the machine whose short host name is <host>
+                        (AGENTS_HOST overrides the name); for memories that hold on one machine only
 instructions/*.md     → shared/instructions/
 commands/*.md         → shared/commands/
 subagents/*.md        → shared/subagents/
@@ -94,7 +96,7 @@ How it works:
 Working with git in a checkout overlay:
 
 - Run git from `overlays/<alias>` (or `git -C overlays/<alias>`). `git status` lists only tracked changes, and porcelain paths are relative to the harness root.
-- A new file under `overlays/<alias>/` needs `git add -f` the first time, because the base's `.gitignore` ignores `overlays/` and the overlay shares it. A new view file (`../../shared/memory/x.md`) is added normally.
+- Files under `overlays/<alias>/` sit inside the base's ignored `overlays/`, and the overlay shares that `.gitignore`, so `git add <path>` refuses them even when they are tracked. Stage an edit with `git add -u <path>` (or `git commit -- <path>`), and a new file with `git add -f <path>`. View files (`../../shared/memory/x.md`) are added normally.
 - Never `git add -A` there: from the overlay's side every base file is untracked. The guard refuses the commit, but the index is then polluted until `git reset`. The MCP `overlay_commit` tool stages only tracked changes unless given paths.
 
 Commands:
@@ -111,7 +113,7 @@ Moving an overlay to checkout mode: make the restructure commit in a scratch clo
 A new file in a view directory belongs to nobody until someone decides: the base (public) or an overlay (private). `shared/AGENTS.md`, "Where new content goes", says how to decide. Three things keep that decision from being skipped:
 
 - `overlay.py status` lists every file or skill directory in the view directories that no repo tracks as `UNFILED`. The memory index files (`MEMORY.md`, `MEMORY.base.md`) never count.
-- `overlay.py file <path> --to base|<alias>` stages it in the chosen repo. For a checkout overlay it stays in place and joins the exclude block and `.ignore`; for a symlink overlay it moves under `overlays/<alias>/` and is linked back. A memory's index line moves from the rendered index to the owner's index source (`shared/memory/MEMORY.base.md`, or `overlays/<alias>/memory/MEMORY.md`). Nothing is committed: review and commit in that repo.
+- `overlay.py file <path> --to base|<alias>` stages it in the chosen repo. For a checkout overlay it stays in place and joins the exclude block and `.ignore`; for a symlink overlay it moves under `overlays/<alias>/` and is linked back. A memory's index line moves from the rendered index to the owner's index source (`shared/memory/MEMORY.base.md`, or `overlays/<alias>/memory/MEMORY.md`; with `--host <host>`, the overlay's `memory/hosts/<host>.md`, so only that machine indexes it). Nothing is committed: review and commit in that repo.
 - `overlay.py install` puts a pre-commit hook in the base repo (`overlay.py check-staged`) that refuses a commit taking in a path an overlay provides, or anything inside a registered overlay's clone. A hook someone else wrote is never overwritten; install warns instead.
 
 To undo a conversion: restore `.git/config` and `.git/index` from the saved directory, `git reset --soft` to the saved HEAD, move the view files back under `overlays/<alias>/`, and run `overlay.py install <alias>` to recreate the symlinks.

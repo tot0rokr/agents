@@ -8,11 +8,13 @@ Run from repo root:
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import layers as layers_mod  # noqa: E402
@@ -357,6 +359,28 @@ class FilingTests(CheckoutFixture):
         self.assertTrue((self.repo / "overlays/sym/memory/sym_note.md").is_file())
         self.assertTrue((self.repo / "shared/memory/sym_note.md").is_symlink())
         self.assertIn("memory/sym_note.md", self.staged(self.repo / "overlays/sym"))
+
+    def test_file_with_host_indexes_it_for_that_machine_only(self):
+        self.add_checkout("work", NOTE)
+        self.run_cmd("install")
+        self.new_memory("box_note.md")
+        rc, lines = self.run_cmd("file", str(self.repo / "shared/memory/box_note.md"), "--to", "work", "--host", "box1")
+        self.assertEqual(rc, 0, lines)
+        fragment = self.repo / "overlays/work/memory/hosts/box1.md"
+        self.assertIn("- [New](box_note.md) — new", fragment.read_text())
+        live = self.repo / rs.MEMORY_LIVE_REL
+        with mock.patch.dict(os.environ, {"AGENTS_HOST": "box1"}):
+            rs.render_memory(self.repo)
+        self.assertIn("box_note.md", live.read_text())
+        with mock.patch.dict(os.environ, {"AGENTS_HOST": "box2"}):
+            rs.render_memory(self.repo)
+        self.assertNotIn("box_note.md", live.read_text())
+
+    def test_a_host_index_line_never_goes_to_the_base(self):
+        self.run_cmd("install")
+        self.new_memory("box_note.md")
+        with self.assertRaises(overlay_mod.OverlayError):
+            self.run_cmd("file", str(self.repo / "shared/memory/box_note.md"), "--to", "base", "--host", "box1")
 
     def test_filing_something_already_tracked_is_refused(self):
         self.add_checkout("work", NOTE)

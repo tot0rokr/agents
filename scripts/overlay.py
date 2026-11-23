@@ -19,7 +19,16 @@ from fnmatch import fnmatch
 from pathlib import Path
 
 from install import Mkdir, Symlink
-from layers import APPLY_CHECKOUT, APPLY_SYMLINK, BASE_ALIAS, OVERLAY_APPLY_MODES, VIEW_DIRS, layers
+from layers import (
+    APPLY_CHECKOUT,
+    APPLY_SYMLINK,
+    BASE_ALIAS,
+    HOST_RE,
+    MEMORY_HOSTS_REL,
+    OVERLAY_APPLY_MODES,
+    VIEW_DIRS,
+    layers,
+)
 from render_settings import OVERLAYS_MODE, artifact_current, dumps, preview, render_all, substitute
 
 OVERLAYS_REL = "overlays"
@@ -510,7 +519,10 @@ def _move_index_line(repo_root: Path, unit: str, target: Path, log) -> None:
 
     name = Path(unit).name
     marker = f"]({name})"
-    sources = [repo_root / MEMORY_BASE_REL] + [o.path / "memory" / "MEMORY.md" for o in enabled_overlays(repo_root)]
+    sources = [repo_root / MEMORY_BASE_REL]
+    for o in enabled_overlays(repo_root):
+        sources.append(o.path / "memory" / "MEMORY.md")
+        sources += sorted((o.path / MEMORY_HOSTS_REL).glob("*.md"))
     if any(marker in source.read_text() for source in sources if source.is_file()):
         log(f"KEEP  the index line for {name} (already in an index source)")
         return
@@ -539,6 +551,8 @@ def cmd_file(repo_root: Path, args, log) -> int:
         else:
             raise OverlayError(f"{rel} is not an unfiled view file (see 'overlay.py status')")
 
+    if args.host and (args.to == BASE_ALIAS or not HOST_RE.match(args.host)):
+        raise OverlayError("--host takes a machine name and an overlay: one machine's lines never go in the public base")
     if args.to == BASE_ALIAS:
         _git(["add", "--", rel], cwd=repo_root)
         index = repo_root / MEMORY_BASE_REL
@@ -559,7 +573,7 @@ def cmd_file(repo_root: Path, args, log) -> int:
             dest.parent.mkdir(parents=True, exist_ok=True)
             os.replace(repo_root / rel, dest)  # install links it back below
             _git(["add", "--", inside], cwd=overlay.path)
-        index = overlay.path / "memory" / "MEMORY.md"
+        index = overlay.path / (f"{MEMORY_HOSTS_REL}/{args.host}.md" if args.host else "memory/MEMORY.md")
         where = f"overlay '{overlay.alias}' ({overlay.path.relative_to(repo_root)})"
     log(f"STAGE {rel} in {where}")
 
@@ -783,7 +797,7 @@ def unapply_overlay(repo_root: Path, alias: str, applied: list[dict], log) -> li
 # ---------------------------------------------------------------------------
 
 
-def _git(args: list[str], cwd: Path | None = None) -> str:
+def _git(args: list[str], cwd: Path | None = None, strip: bool = True) -> str:
     # Always located by cwd: a GIT_DIR inherited from a hook would aim it at
     # another repo, and a checkout overlay shares its worktree with the base.
     env = {k: v for k, v in os.environ.items() if k not in GIT_LOCATION_VARS}
@@ -796,7 +810,8 @@ def _git(args: list[str], cwd: Path | None = None) -> str:
     )
     if proc.returncode != 0:
         raise OverlayError(f"git {' '.join(args)} failed:\n{proc.stderr.strip()}")
-    return proc.stdout.strip()
+    # Porcelain status starts lines with a space; strip=False keeps the first one.
+    return proc.stdout.strip() if strip else proc.stdout.rstrip("\n")
 
 
 def _render(repo_root: Path, write: bool = True) -> dict[str, dict | str]:
@@ -1481,7 +1496,7 @@ def cmd_convert(repo_root: Path, args, log) -> int:
     sync_git_exclude(repo_root, applied)
     sync_ignore_file(repo_root, applied)
     _render(repo_root)
-    for line in _git(["status", "--porcelain"], cwd=path).splitlines():
+    for line in _git(["status", "--porcelain"], cwd=path, strip=False).splitlines():
         log(f"STATUS {line}")
     log(f"converted '{alias}' to checkout mode; to undo, see {backup} and docs/overlay.md")
     return 0
@@ -1627,6 +1642,7 @@ def build_parser() -> argparse.ArgumentParser:
     file_ = sub.add_parser("file", help="give an unfiled view file its owner: stage it in the base or an overlay")
     file_.add_argument("path", help="the file, or skill directory, in a view dir (shared/memory/x.md, universal/skills/x)")
     file_.add_argument("--to", required=True, help="'base' or an overlay alias")
+    file_.add_argument("--host", default=None, help="index it for this machine only (overlay's memory/hosts/<host>.md)")
     file_.set_defaults(func=cmd_file)
 
     check = sub.add_parser("check-staged", help="the base repo's pre-commit guard (run by the hook)")
