@@ -91,12 +91,13 @@ if [[ -f "$REPO_ROOT/claude/settings.json" ]]; then
 else
   echo "SKIP  $REPO_ROOT/claude/settings.json not rendered yet (scripts/render_settings.py)"
 fi
-parse_json "$REPO_ROOT/claude/settings.base.json"
+parse_json "$REPO_ROOT/base/settings/claude.json"
+parse_json "$REPO_ROOT/base/overlay.json"
 parse_json "$REPO_ROOT/opencode/opencode.json"
 parse_json "$REPO_ROOT/gemini/settings.json"
 parse_json "$REPO_ROOT/shared/mcp/servers.json"
 warn_unless_private shared/mcp/servers.json
-parse_toml "$REPO_ROOT/codex/config.base.toml"
+parse_toml "$REPO_ROOT/base/settings/codex.toml"
 if [[ -f "$REPO_ROOT/codex/config.toml" ]]; then
   parse_toml "$REPO_ROOT/codex/config.toml"
   warn_unless_private codex/config.toml
@@ -179,7 +180,7 @@ def servers(rel):
         return {}
 
 
-overlay_only = sorted(set(servers("shared/mcp/servers.json")) - set(servers("shared/mcp/servers.base.json")))
+overlay_only = sorted(set(servers("shared/mcp/servers.json")) - set(servers("base/mcp/servers.json")))
 if not overlay_only:
     print("OK    no overlay-only MCP servers to leak")
     raise SystemExit(0)

@@ -313,8 +313,8 @@ class FilingTests(CheckoutFixture):
 
     def setUp(self) -> None:
         super().setUp()
-        self.write("shared/memory/MEMORY.base.md", "- [Base](base.md) — a base memory\n")
-        git(self.repo, "add", "shared/memory/MEMORY.base.md")
+        self.write(rs.MEMORY_BASE_REL, "- [Base](base.md) — a base memory\n")
+        git(self.repo, "add", rs.MEMORY_BASE_REL)
         git(self.repo, "commit", "-qm", "index")
 
     def new_memory(self, name: str) -> None:
@@ -334,7 +334,7 @@ class FilingTests(CheckoutFixture):
         rc, lines = self.run_cmd("file", str(self.repo / "shared/memory/loose.md"), "--to", "base")
         self.assertEqual(rc, 0, lines)
         self.assertIn("shared/memory/loose.md", self.staged(self.repo))
-        self.assertIn("- [New](loose.md) — new", (self.repo / "shared/memory/MEMORY.base.md").read_text())
+        self.assertIn("- [New](loose.md) — new", (self.repo / rs.MEMORY_BASE_REL).read_text())
         _rc, lines = self.run_cmd("status")
         self.assertFalse(any(line.startswith("UNFILED") for line in lines), lines)
 
@@ -348,7 +348,7 @@ class FilingTests(CheckoutFixture):
         self.assertNotIn("shared/memory/work_note.md", self.staged(self.repo))
         self.assertEqual(self.base_status_views(), [])
         self.assertIn("- [New](work_note.md) — new", (self.repo / "overlays/work/memory/MEMORY.md").read_text())
-        self.assertNotIn("work_note.md", (self.repo / "shared/memory/MEMORY.base.md").read_text())
+        self.assertNotIn("work_note.md", (self.repo / rs.MEMORY_BASE_REL).read_text())
 
     def test_file_to_a_symlink_overlay_moves_it_in_and_links_it_back(self):
         self.add_overlay("sym", 70, {"memory/old.md": "old\n"})

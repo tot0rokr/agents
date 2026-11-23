@@ -23,6 +23,7 @@ from layers import (
     APPLY_CHECKOUT,
     APPLY_SYMLINK,
     BASE_ALIAS,
+    BASE_PATHS,
     HOST_RE,
     MEMORY_HOSTS_REL,
     OVERLAY_APPLY_MODES,
@@ -68,9 +69,9 @@ LINK_MAP = tuple(
 
 ALIAS_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 
-# memory/MEMORY.md is the index fragment the renderer concatenates, and
-# MEMORY.base.md the base's own index source: neither is a memory file to drop
-# in beside the others.
+# memory/MEMORY.md is the index fragment the renderer concatenates, not a
+# memory file to drop in beside the others. MEMORY.base.md was the base's index
+# source before base/ existed; an old checkout may still have one.
 LINK_SKIP = {("memory", "MEMORY.md"), ("memory", "MEMORY.base.md")}
 
 # Setup steps an overlay cannot express as files: credentials, daemons, tokens.
@@ -1009,7 +1010,7 @@ def cmd_list(repo_root: Path, args, log) -> int:
         counts[item["alias"]] = counts.get(item["alias"], 0) + 1
 
     log(f"{'ALIAS':<16} {'PRIO':>4}  {'MODE':<8} {'STATE':<12} {'LINKS':>5}  REF     URL")
-    log(f"{BASE_ALIAS:<16} {0:>4}  {'inplace':<8} {'base':<12} {'-':>5}  {'-':<7} this repo (layer 0, layer.json)")
+    log(f"{BASE_ALIAS:<16} {0:>4}  {'inplace':<8} {'base':<12} {'-':>5}  {'-':<7} this repo (layer 0, base/)")
     for overlay in overlays:
         if not overlay.cloned:
             state = "not-cloned"
@@ -1068,7 +1069,7 @@ def cmd_status(repo_root: Path, args, log) -> int:
             log(f"LOCAL {_unignored_hint(overlay, rel)}")
             problems += 1
 
-    if (repo_root / "claude" / "settings.base.json").is_file():
+    if (repo_root / BASE_PATHS["settings/claude.json"]).is_file():
         try:
             rendered = render_all(repo_root, write=False)
         except ValueError as exc:

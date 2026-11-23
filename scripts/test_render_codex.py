@@ -70,9 +70,9 @@ class FixtureRepo(unittest.TestCase):
         self.repo = Path(self._tmp.name) / "repo"
         for sub in ("claude", "codex", "shared/mcp", "shared/instructions", "overlays"):
             (self.repo / sub).mkdir(parents=True)
-        self.write("codex/config.base.toml", 'model = "base-model"\napprovals_reviewer = "auto_review"\n')
+        self.write(rs.CODEX_BASE_REL, 'model = "base-model"\napprovals_reviewer = "auto_review"\n')
         self.write(
-            "shared/mcp/servers.base.json",
+            rs.MCP_BASE_REL,
             json.dumps({"servers": {"linear": {"url": "https://mcp.linear.app/mcp", "transport": "http"}}}),
         )
         self.registry: list[dict] = []
@@ -321,7 +321,7 @@ class RenderCodexTests(FixtureRepo):
     def test_a_key_removed_from_the_base_is_dropped_and_runtime_keys_stay(self):
         self.write(rs.CODEX_LIVE_REL, LIVE)
         rs.render_codex(self.repo)
-        self.write("codex/config.base.toml", 'model = "base-model"\n')
+        self.write(rs.CODEX_BASE_REL, 'model = "base-model"\n')
         rs.render_codex(self.repo)
         live = self.live()
         self.assertNotIn("approvals_reviewer", live)
@@ -429,7 +429,7 @@ class RenderCodexTests(FixtureRepo):
         self.assertNotIn("otel", self.live())
 
     def test_a_server_codex_added_outlives_the_last_server_from_a_source(self):
-        self.write("shared/mcp/servers.base.json", json.dumps({"servers": {}}))
+        self.write(rs.MCP_BASE_REL, json.dumps({"servers": {}}))
         self.add_overlay("work", 60, {"mcp/servers.json": json.dumps({"servers": {"kb": {"command": "/opt/kb"}}})})
         rs.render_codex(self.repo)
 
@@ -471,7 +471,7 @@ class RenderCodexTests(FixtureRepo):
 
     def test_a_trailing_plus_is_part_of_a_codex_key(self):
         self.write(
-            "shared/mcp/servers.base.json",
+            rs.MCP_BASE_REL,
             json.dumps({"servers": {"notes+": {"command": "/opt/notes"}}}),
         )
         self.add_overlay("study", 60, {
@@ -489,7 +489,7 @@ class RenderCodexTests(FixtureRepo):
         self.assertEqual(self.live()["model"], "this-machine")
 
     def test_base_refuses_local_only_keys(self):
-        self.write("codex/config.base.toml", '[projects."/x"]\ntrust_level = "trusted"\n')
+        self.write(rs.CODEX_BASE_REL, '[projects."/x"]\ntrust_level = "trusted"\n')
         with self.assertRaises(ValueError):
             rs.render_codex(self.repo)
 
@@ -521,7 +521,7 @@ class RenderCodexTests(FixtureRepo):
 
     def test_a_value_of_another_type_is_drift(self):
         # Python's == takes 1 for true and 65536.0 for 65536; Codex refuses both.
-        self.write("codex/config.base.toml", (
+        self.write(rs.CODEX_BASE_REL, (
             'model = "base-model"\nproject_doc_max_bytes = 65536\n\n'
             "[tui]\nscreen_reader_detection_done = true\n"
         ))
@@ -573,7 +573,7 @@ class RenderCodexTests(FixtureRepo):
     def test_a_codex_write_during_the_render_survives(self):
         self.write(rs.CODEX_LIVE_REL, LIVE)
         rs.render_codex(self.repo)
-        self.write("codex/config.base.toml", 'model = "next-model"\n')
+        self.write(rs.CODEX_BASE_REL, 'model = "next-model"\n')
         patch, written = self.codex_writes_after_reads(1)
         with patch:
             rs.render_codex(self.repo)
@@ -593,7 +593,7 @@ class RenderCodexTests(FixtureRepo):
     def test_a_file_that_keeps_changing_is_left_to_codex(self):
         self.write(rs.CODEX_LIVE_REL, LIVE)
         rs.render_codex(self.repo)
-        self.write("codex/config.base.toml", 'model = "next-model"\n')
+        self.write(rs.CODEX_BASE_REL, 'model = "next-model"\n')
         patch, written = self.codex_writes_after_reads(rs.CODEX_RENDER_ATTEMPTS)
         with patch, self.assertRaises(ValueError):
             rs.render_codex(self.repo)
@@ -632,7 +632,7 @@ class RenderCodexTests(FixtureRepo):
         self.assertTrue(any(line.startswith("LOCAL personal/settings/codex.local.toml") for line in lines), lines)
 
     def test_install_warns_about_an_unignored_local_toml(self):
-        self.write("claude/settings.base.json", "{}\n")
+        self.write(rs.BASE_REL, "{}\n")
         root = self.add_overlay("personal", 50, {})
         (root / ".gitignore").write_text("*.local.json\n")
         (root / "settings").mkdir()
@@ -755,7 +755,7 @@ class RenderAllTests(FixtureRepo):
         self.assert_render_refused("work/settings/codex.toml", "does not parse")
 
     def test_a_base_that_does_not_parse(self):
-        self.write("codex/config.base.toml", "model = base-model\n")
+        self.write(rs.CODEX_BASE_REL, "model = base-model\n")
         self.assert_render_refused(rs.CODEX_BASE_REL)
 
     def test_a_live_file_in_toml_1_1(self):
@@ -771,7 +771,7 @@ class RenderAllTests(FixtureRepo):
         self.assert_render_refused("tracked by git")
 
     def test_a_skipped_server_is_reported_once_for_two_passes(self):
-        self.write("shared/mcp/servers.base.json", json.dumps({"servers": {"s": {"url": "https://x", "transport": "sse"}}}))
+        self.write(rs.MCP_BASE_REL, json.dumps({"servers": {"s": {"url": "https://x", "transport": "sse"}}}))
         err = io.StringIO()
         with contextlib.redirect_stderr(err):
             rs.render_all(self.repo)
@@ -779,7 +779,7 @@ class RenderAllTests(FixtureRepo):
         self.assertEqual(self.settings_model(), "two")
 
     def test_every_codex_warning_is_printed_once_for_two_passes(self):
-        self.write("shared/mcp/servers.base.json", json.dumps({"servers": {
+        self.write(rs.MCP_BASE_REL, json.dumps({"servers": {
             "linear": {"url": "https://mcp.linear.app/mcp"},
             "kb": {"command": "kb", "env": {"DSN": "pg://${PASS}@h"}},
         }}))
@@ -791,7 +791,7 @@ class RenderAllTests(FixtureRepo):
         self.assertEqual(err.getvalue().count("dropped command from MCP server 'linear'"), 1, err.getvalue())
 
     def test_check_reports_a_base_that_does_not_parse(self):
-        self.write("codex/config.base.toml", "model = \n")
+        self.write(rs.CODEX_BASE_REL, "model = \n")
         err = io.StringIO()
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
             code = rs.main(["--repo", str(self.repo), "--check"])
@@ -940,7 +940,7 @@ class PrivateArtifactTests(FixtureRepo):
             "codex/db-backups/sqlite-1-0/logs_2.sqlite",
         ):
             self.assertTrue(ignored(rel), rel)
-        for rel in ("codex/config.base.toml", "shared/mcp/servers.base.json", "claude/settings.base.json"):
+        for rel in (rs.CODEX_BASE_REL, rs.MCP_BASE_REL, rs.BASE_REL):
             self.assertFalse(ignored(rel), rel)
 
 

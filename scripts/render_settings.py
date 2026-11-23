@@ -76,7 +76,7 @@ _BEARER_VAR = re.compile(r"Bearer \$\{([A-Za-z_][A-Za-z0-9_]*)\}", re.IGNORECASE
 
 KeyPath = tuple[str, ...]
 
-# Never in codex/config.base.toml: trusted projects are machine paths (an
+# Never in base/settings/codex.toml: trusted projects are machine paths (an
 # overlay's settings/codex.toml holds them), MCP servers come from
 # shared/mcp/, and the NUX counters are Codex's own UI state.
 CODEX_LOCAL_ONLY: tuple[KeyPath, ...] = (
@@ -312,6 +312,9 @@ def _save_state(repo_root: Path, managed: set[KeyPath], key: str = "managed") ->
 
 def _stage(target: Path, text: str, mode: int | None = None) -> Path:
     """Write `text` next to `target`, ready to be renamed over it."""
+    # A fresh clone has no shared/mcp/: git keeps no empty directory, and the
+    # base sources that used to sit beside the artifacts now live under base/.
+    target.parent.mkdir(parents=True, exist_ok=True)
     tmp = target.with_name(target.name + ".render-tmp")
     if mode is None:
         tmp.write_text(text)
@@ -861,7 +864,7 @@ def dumps_toml(data: dict, comment: str = "") -> str:
 
 
 CODEX_HEADER = (
-    "Rendered by scripts/render_settings.py from codex/config.base.toml, the MCP\n"
+    "Rendered by scripts/render_settings.py from base/settings/codex.toml, the MCP\n"
     "servers in shared/mcp/ and each overlay's settings/codex.toml. Codex writes\n"
     "here too and the keys it adds are kept, but comments are not. Edit the sources."
 )

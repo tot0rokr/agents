@@ -5,7 +5,7 @@
   "setup": [
     {
       "id": "termaid-cli",
-      "description": "termaid, the Mermaid-to-terminal renderer, on PATH for every agent (the Claude Code plugin is enabled in claude/settings.base.json)",
+      "description": "termaid, the Mermaid-to-terminal renderer, on PATH for every agent (the Claude Code plugin is enabled in base/settings/claude.json)",
       "check": "command -v termaid >/dev/null 2>&1 || test -x \"$CLAUDE_HOME/.local/bin/termaid\"",
       "run": "if command -v uv >/dev/null 2>&1; then uv tool install termaid==0.12.0; else pipx install termaid==0.12.0; fi",
       "manual": "Install uv (or pipx), then run 'uv tool install termaid==0.12.0'."

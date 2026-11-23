@@ -11,7 +11,7 @@ overlays/
 # runtime state (autoMode.environment) straight into the settings file, which
 # is exactly what must not reach a public repo. The trailing * takes in the
 # copies people make by hand (.bak, .bak.<timestamp>, .orig, ~): they hold
-# the same content. The tracked .base. sources do not match it.
+# the same content. The tracked sources live under base/ and do not match it.
 claude/settings.json*
 shared/mcp/servers.json*
 shared/memory/MEMORY.md

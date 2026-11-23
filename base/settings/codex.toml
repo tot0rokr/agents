@@ -5,7 +5,7 @@
 # not here (trusted projects, UI counters) are kept.
 #
 # Never put these here: [projects.*] (machine paths; an overlay's
-# settings/codex.toml), [mcp_servers.*] (shared/mcp/servers.base.json), and
+# settings/codex.toml), [mcp_servers.*] (base/mcp/servers.json), and
 # [tui.model_availability_nux] (Codex's own state).
 
 approvals_reviewer = "auto_review"

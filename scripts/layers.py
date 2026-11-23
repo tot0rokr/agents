@@ -1,10 +1,11 @@
 """The layers the harness is assembled from: the base (this repo) and the overlays.
 
-The base is layer 0. It has the parts an overlay has (a manifest, setup steps,
-settings and MCP fragments, a memory index, and the memory, instructions,
-commands, subagents and skills directories), but it keeps them where the tools
-read them, so applying it links nothing. Overlays (overlay.Overlay) bring
-theirs in from overlays/<alias>/, in priority order, on top of the base.
+The base is layer 0, shaped like an overlay. Its own files (manifest, setup
+steps, settings and MCP fragments, memory index) live under base/ with the
+names an overlay uses under overlays/<alias>/. Its memory, instructions,
+commands, subagents and skills are the view directories themselves, so
+applying it links nothing. Overlays (overlay.Overlay) bring theirs in, in
+priority order, on top of the base.
 
 This module imports nothing from overlay or render_settings at load time;
 both import it.
@@ -20,7 +21,8 @@ from pathlib import Path
 
 BASE_ALIAS = "base"
 BASE_PRIORITY = 0
-BASE_MANIFEST_REL = "layer.json"
+BASE_DIR_REL = "base"
+BASE_MANIFEST_REL = "base/overlay.json"
 
 # How a layer's files reach the view directories the tools read.
 #   inplace:  they are already there (the base)
@@ -45,12 +47,11 @@ VIEW_DIRS = {
     "skills": "universal/skills",
 }
 
-# Overlay-relative file -> where the base keeps the same part.
+# Overlay-relative file -> where the base keeps the same part: the same name
+# under base/ as under overlays/<alias>/.
 BASE_PATHS = {
-    "settings/claude.json": "claude/settings.base.json",
-    "settings/codex.toml": "codex/config.base.toml",
-    "mcp/servers.json": "shared/mcp/servers.base.json",
-    "memory/MEMORY.md": "shared/memory/MEMORY.base.md",
+    rel: f"{BASE_DIR_REL}/{rel}"
+    for rel in ("settings/claude.json", "settings/codex.toml", "mcp/servers.json", "memory/MEMORY.md")
 }
 
 
@@ -93,7 +94,7 @@ class BaseLayer:
         if head in VIEW_DIRS:
             view = self.repo_root / VIEW_DIRS[head]
             return view / tail if tail else view
-        return self.repo_root / rel
+        return self.repo_root / BASE_DIR_REL / rel
 
 
 def layers(repo_root: Path) -> list:

@@ -394,10 +394,11 @@ class Installer:
         return self.result
 
     def _render_settings(self) -> None:
-        if not (self.repo_root / "claude" / "settings.base.json").is_file():
-            return
         sys.path.insert(0, str(self.repo_root / "scripts"))
-        from render_settings import preview, render_all
+        from render_settings import BASE_REL, preview, render_all
+
+        if not (self.repo_root / BASE_REL).is_file():
+            return
 
         if self.dry_run:
             # The render reads only the repo, so the home links make no difference to it.
@@ -411,7 +412,7 @@ class Installer:
     def _apply_global_config(self) -> None:
         """Set the base's top-level keys in ~/.claude.json, keeping every other key.
 
-        The base wins the keys it names, like settings.base.json does. The rest
+        The base wins the keys it names, like base/settings/claude.json does. The rest
         of the file is Claude Code's runtime state and is written back as is.
         """
         base_path = self.repo_root / GLOBAL_CONFIG_BASE_REL

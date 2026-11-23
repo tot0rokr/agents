@@ -367,7 +367,9 @@ class TestDryRun(InstallTestBase):
         self.assertFalse((self.repo / "shared" / "memory" / "note.md").exists())
 
     def test_dry_run_previews_the_render_and_writes_nothing(self):
-        (self.repo / "claude" / "settings.base.json").write_text(json.dumps({"model": "m"}))
+        base = self.repo / "base" / "settings" / "claude.json"
+        base.parent.mkdir(parents=True, exist_ok=True)
+        base.write_text(json.dumps({"model": "m"}))
 
         lines: list[str] = []
         install(home=self.home, repo_root=self.repo, dry_run=True, log=lines.append)

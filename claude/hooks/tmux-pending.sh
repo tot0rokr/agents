@@ -8,7 +8,7 @@
 #   seen — still needs the user, but the window has been visited since
 #   bg   — the turn ended while background work runs; it will wake Claude itself
 #   work — Claude is working on a turn
-# Actions (the hook event that calls each is in settings.base.json):
+# Actions (the hook event that calls each is in base/settings/claude.json):
 #   stop   — Stop / StopFailure: wait, or bg when the input lists in-flight
 #            background_tasks
 #   notify — Notification: wait. The 60-second idle reminder keeps an existing

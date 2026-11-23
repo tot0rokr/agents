@@ -67,7 +67,7 @@ def make_overlay(alias: str, priority: int, settings: dict | None = None, **extr
 def fresh_repo(base_settings: dict) -> None:
     shutil.rmtree(REPO, ignore_errors=True)
     subprocess.run(["git", "clone", "-q", str(SOURCE), str(REPO)], check=True)
-    (REPO / "claude" / "settings.base.json").write_text(json.dumps(base_settings, indent=2) + "\n")
+    (REPO / "base" / "settings" / "claude.json").write_text(json.dumps(base_settings, indent=2) + "\n")
     subprocess.run([sys.executable, str(REPO / "scripts" / "render_settings.py")],
                    cwd=str(REPO), capture_output=True)
 
@@ -163,7 +163,7 @@ def main() -> int:
 
     print("\n== 6. the memory index when someone edits it by hand")
     fresh_repo({"model": "base-model"})
-    (REPO / "shared" / "memory" / "MEMORY.base.md").write_text("- [one](one.md) — first\n")
+    (REPO / "base" / "memory" / "MEMORY.md").write_text("- [one](one.md) — first\n")
     make_overlay("mem", 60)
     (ORIGINS / "mem" / "memory" / "MEMORY.md").write_text("- [two](two.md) — from the overlay\n")
     git(ORIGINS / "mem", "add", "-A")
@@ -205,7 +205,7 @@ def main() -> int:
     after_servers = json.loads(servers.read_text())["servers"]
     record("by design" if "hand-added" not in after_servers else "PASS",
            "editing the rendered servers.json does not stick",
-           "the artifact is regenerated from servers.base.json plus overlays")
+           "the artifact is regenerated from base/mcp/servers.json plus overlays")
 
     print("\n== 8. an overlay whose file name the base already uses")
     fresh_repo({"model": "base-model"})

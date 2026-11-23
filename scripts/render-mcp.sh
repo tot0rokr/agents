@@ -45,7 +45,8 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # ~/.claude.json. The per-tool configs under gemini/ and opencode/ are tracked
 # in a public repo, so they are rendered from the base alone.
 SRC="$REPO_ROOT/shared/mcp/servers.json"
-PUBLIC_SRC="$REPO_ROOT/shared/mcp/servers.base.json"
+PUBLIC_SRC="$REPO_ROOT/base/mcp/servers.json"
+[[ -f "$PUBLIC_SRC" ]] || PUBLIC_SRC="$REPO_ROOT/shared/mcp/servers.base.json"   # a repo from before base/
 [[ -f "$PUBLIC_SRC" ]] || PUBLIC_SRC="$SRC"   # a repo from before the split
 
 [[ -f "$SRC" ]] || { echo "missing $SRC" >&2; exit 1; }
