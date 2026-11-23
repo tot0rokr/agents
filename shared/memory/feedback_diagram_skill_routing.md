@@ -1,6 +1,6 @@
 ---
 name: feedback_diagram_skill_routing
-description: Two diagram skills are installed; diagram-design for polished static figures and branching or complex flows, archify for repo-backed, maintained, interactive diagrams; with diagram-design never drop what the user named, split into more figures instead
+description: Two diagram skills are installed; diagram-design for polished static figures and branching or complex flows, archify for repo-backed, maintained, interactive diagrams; with diagram-design never drop what the user named, split into more figures instead, and state the plan in one line and draw without waiting, pausing only for a project's first style-guide setup
 metadata:
   type: feedback
 ---
@@ -23,6 +23,8 @@ If it is unclear, ask which matters more: the look of one figure (diagram-design
 With diagram-design:
 - Never drop or merge an actor, step, state or path the user named just to stay under the skill's budgets (9 nodes, 12 arrows or messages, 5 lifelines, 14-character arrow labels). When the content exceeds a budget, split it into several figures on one page, as the skill's own overview + detail rule says, even when the user asked for "one diagram", and say on the page that it was split.
 - If splitting still cannot hold it, exceed the budget rather than omit content, and tell the user which budget you exceeded.
+- The skill's "Confirm before drawing" step: state the chosen type, size preset and planned cuts or splits in one line, then draw without waiting for an answer ([[feedback_act_dont_over_ask]]). The user redirects after seeing the figure.
+- The one pause kept: the first diagram in a project whose style guide still has the shipped default tokens. Ask whether to customize it before drawing, because the answer applies to every later figure in that project.
 
 With archify:
 - Check that nothing the user asked to see ended up only in a text card. If it did, draw it or say so.
@@ -33,6 +35,6 @@ With both: look at a screenshot before handing the diagram over.
 
 If archify offers to make one-page explainers proactive and the user accepts, add its one-line `[archify explainer: ...]` rule to `shared/AGENTS.md`, the global rules file every tool reads (`~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` both link to it). Keep it to that one line.
 
-**Why:** In a 2026-11-04 comparison (4 scenarios x 2 tools, judged on fidelity, visual quality and practicality), archify won the simple requests because diagram-design's budgets cut content even there (one run dropped the User actor). diagram-design won the complex ones because it split into figures while archify pushed error paths and symlinks into cards. diagram-design won visual quality 4 of 4 and archify won practicality 4 of 4. The user chose this memory rule over patching diagram-design's budgets.
+**Why:** In a 2026-11-04 comparison (4 scenarios x 2 tools, judged on fidelity, visual quality and practicality), archify won the simple requests because diagram-design's budgets cut content even there (one run dropped the User actor). diagram-design won the complex ones because it split into figures while archify pushed error paths and symlinks into cards. diagram-design won visual quality 4 of 4 and archify won practicality 4 of 4. The user chose this memory rule over patching diagram-design's budgets. On 2026-11-23 the user chose to replace the skill's wait-before-drawing step with a one-line plan, keeping only the style-guide pause; the vendored skill stays unedited.
 
 **How to apply:** Route by the table before loading a skill. For diagram-design, plan the split up front when the request lists more than the budget allows.
