@@ -69,16 +69,18 @@ def make_fake_repo(root: Path, with_scripts: bool = False, git_init: bool = Fals
 
 
 def write_bases(repo: Path, model: str = "test-model", servers: dict | None = None) -> None:
-    """The tracked sources the renderers read."""
-    (repo / "claude" / "settings.base.json").write_text(
+    """The tracked sources the renderers read, under base/ as the harness keeps them."""
+    for sub in ("settings", "mcp", "memory"):
+        (repo / "base" / sub).mkdir(parents=True, exist_ok=True)
+    (repo / "base" / "settings" / "claude.json").write_text(
         json.dumps({"model": model, "env": {"KEEP": "base"}}, indent=2) + "\n"
     )
-    (repo / "shared" / "mcp" / "servers.base.json").write_text(
+    (repo / "base" / "mcp" / "servers.json").write_text(
         json.dumps({"servers": servers if servers is not None else {"linear": {"url": "https://mcp.linear.app/mcp", "transport": "http"}}}, indent=2)
         + "\n"
     )
-    (repo / "shared" / "memory" / "MEMORY.base.md").write_text("- [base note](base_note.md) — public\n")
-    (repo / "codex" / "config.base.toml").write_text(f'model = "{model}"\n')
+    (repo / "base" / "memory" / "MEMORY.md").write_text("- [base note](base_note.md) — public\n")
+    (repo / "base" / "settings" / "codex.toml").write_text(f'model = "{model}"\n')
 
 
 def make_overlay(

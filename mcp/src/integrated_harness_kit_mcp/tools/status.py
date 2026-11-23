@@ -83,7 +83,7 @@ def status(level: str = "quick", repo_path: str | None = None, home: str | None 
 
 def _artifacts(repo_root: Path) -> list[dict]:
     out = []
-    for artifact, source in layout.ARTIFACTS.items():
+    for artifact, source in layout.artifacts(repo_root).items():
         out.append(
             {
                 "path": artifact,

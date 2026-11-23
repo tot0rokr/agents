@@ -10,7 +10,7 @@ Three scopes, because the outputs have different audiences:
 The split exists because the per-tool configs are tracked in a public repo while
 `servers.json` now merges private overlays into it. Rendering those files from
 the merged source would commit an employer's internal servers, so `public`
-renders from `servers.base.json` and `local` carries the merged set. Codex's
+renders from `base/mcp/servers.json` and `local` carries the merged set. Codex's
 config is untracked like Claude's settings, so it is an artifact and gets the
 merged set too.
 """
@@ -28,7 +28,7 @@ from ._common import need_repo, run
 SCOPES = ("artifacts", "public", "local", "all")
 
 SERVERS_REL = "shared/mcp/servers.json"
-SERVERS_BASE_REL = "shared/mcp/servers.base.json"
+SERVERS_BASE_REL = "base/mcp/servers.json"
 
 
 def render(
@@ -89,7 +89,7 @@ def _render_artifacts(repo_root: Path) -> dict:
 def _render_public(repo_root: Path, timeout: float) -> dict:
     """Run the shell renderers against base-only servers, then restore."""
     servers = repo_root / SERVERS_REL
-    base = repo_root / SERVERS_BASE_REL
+    base = repo_root / layout.base_source(repo_root, SERVERS_BASE_REL)
     scripts = repo_root / "scripts"
 
     overlay_only = _overlay_only_servers(repo_root)
@@ -121,7 +121,7 @@ def _render_public(repo_root: Path, timeout: float) -> dict:
     step = {
         "step": "public",
         "ok": ok,
-        "rendered_from": "servers.base.json" if swapped else "servers.json",
+        "rendered_from": layout.base_source(repo_root, SERVERS_BASE_REL) if swapped else "servers.json",
         "overlay_servers_excluded": overlay_only,
         "scripts": results,
     }
@@ -201,7 +201,7 @@ def _servers(path: Path) -> dict:
 
 def _overlay_only_servers(repo_root: Path) -> list[str]:
     effective = _servers(repo_root / SERVERS_REL)
-    base = _servers(repo_root / SERVERS_BASE_REL)
+    base = _servers(repo_root / layout.base_source(repo_root, SERVERS_BASE_REL))
     return sorted(set(effective) - set(base))
 
 

@@ -156,7 +156,7 @@ def main() -> int:
             repo_path=R,
         )
         if result is not None:
-            written = json.loads((REPO / "shared/mcp/servers.base.json").read_text())["servers"]
+            written = json.loads((REPO / "base/mcp/servers.json").read_text())["servers"]
             check(
                 f"server name {bad_name!r} cannot create a path",
                 "../" not in json.dumps(written),
@@ -181,8 +181,8 @@ def main() -> int:
     # ------------------------------------------------------------------ C
     section("C. corrupt and missing state")
     corruptions = {
-        "claude/settings.base.json": "{not json",
-        "shared/mcp/servers.base.json": "",
+        "base/settings/claude.json": "{not json",
+        "base/mcp/servers.json": "",
         "overlays/registry.local.json": "[]",
         "overlays/applied.local.json": "{}",
         "overlays/work/overlay.json": "{oops",
@@ -200,7 +200,7 @@ def main() -> int:
         ):
             survives(f"{tool_name} with corrupt {rel}", fn, *args, repo_path=R)
         rendered = survives(f"render with corrupt {rel}", render_mod.render, "artifacts", repo_path=R)
-        if rendered is not None and rel.endswith("settings.base.json"):
+        if rendered is not None and rel.endswith("settings/claude.json"):
             check("render reports a broken base instead of crashing", not rendered["ok"])
         if backup is None:
             path.unlink(missing_ok=True)
@@ -231,7 +231,7 @@ def main() -> int:
 
     # ------------------------------------------------------------------ D
     section("D. unwritable targets")
-    base = REPO / "claude" / "settings.base.json"
+    base = REPO / "base" / "settings" / "claude.json"
     mode = base.stat().st_mode
     base.chmod(stat.S_IRUSR)
     result = survives("settings_set on a read-only base", settings.settings_set, "theme", "x", repo_path=R)

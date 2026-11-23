@@ -56,7 +56,7 @@ class SettingsTests(HarnessTestCase):
             "theme", "dark", target="base", repo_path=str(self.repo)
         )
         self.assertTrue(result["ok"], result)
-        self.assertEqual(result["wrote"], "claude/settings.base.json")
+        self.assertEqual(result["wrote"], "base/settings/claude.json")
         self.assertEqual(self.live()["theme"], "dark")
         self.assertEqual(self.get("theme")["from"], "base")
 
@@ -73,7 +73,7 @@ class SettingsTests(HarnessTestCase):
         self.settings.settings_set(
             "permissions.defaultMode", "auto", target="base", repo_path=str(self.repo)
         )
-        base = json.loads((self.repo / "claude" / "settings.base.json").read_text())
+        base = json.loads((self.repo / "base" / "settings" / "claude.json").read_text())
         self.assertEqual(base["permissions"]["defaultMode"], "auto")
 
     def test_local_only_keys_cannot_be_tracked(self):

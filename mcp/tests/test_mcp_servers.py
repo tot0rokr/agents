@@ -17,7 +17,7 @@ class McpServerTests(HarnessTestCase):
         register_and_install(self.repo, "work", priority=60)
 
     def base(self) -> dict:
-        return json.loads((self.repo / "shared" / "mcp" / "servers.base.json").read_text())["servers"]
+        return json.loads((self.repo / "base" / "mcp" / "servers.json").read_text())["servers"]
 
     def effective(self) -> dict:
         return json.loads((self.repo / "shared" / "mcp" / "servers.json").read_text())["servers"]
@@ -45,13 +45,13 @@ class McpServerTests(HarnessTestCase):
             "linear2", url="https://example.com/mcp", repo_path=str(self.repo)
         )
         self.assertTrue(result["ok"], result)
-        self.assertEqual(result["wrote"], "shared/mcp/servers.base.json")
+        self.assertEqual(result["wrote"], "base/mcp/servers.json")
         self.assertIn("linear2", self.base())
         self.assertIn("linear2", self.effective())
 
     def test_codex_is_reported_only_when_rendered(self):
         # render_codex leaves the file alone without a base or a TOML reader.
-        (self.repo / "codex" / "config.base.toml").unlink()
+        (self.repo / "base" / "settings" / "codex.toml").unlink()
         result = self.tool.mcp_server_set("linear2", url="https://example.com/mcp", repo_path=str(self.repo))
         self.assertTrue(result["render"]["ok"], result)
         self.assertNotIn("codex/config.toml", result["render"]["written"])
@@ -83,7 +83,7 @@ class McpServerTests(HarnessTestCase):
         self.assertEqual(result["secrets_written"], ["env"])
         fragment = json.loads((self.repo / "overlays" / "work" / "mcp" / "servers.json").read_text())
         self.assertEqual(fragment["servers"]["kb"]["env"]["PASSWORD"], "hunter2")
-        self.assertNotIn("hunter2", (self.repo / "shared" / "mcp" / "servers.base.json").read_text())
+        self.assertNotIn("hunter2", (self.repo / "base" / "mcp" / "servers.json").read_text())
 
     @needs_toml
     def test_a_codex_source_that_does_not_parse_leaves_servers_json_alone(self):

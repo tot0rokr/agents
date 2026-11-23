@@ -22,14 +22,39 @@ OVERLAYS_DIR = "overlays"
 REGISTRY_REL = "overlays/registry.local.json"
 APPLIED_REL = "overlays/applied.local.json"
 
-# artifact -> the tracked source it is rendered from
+# artifact -> the tracked source it is rendered from. The base keeps its layer
+# files under base/, named as an overlay names them under overlays/<alias>/.
 ARTIFACTS: dict[str, str] = {
-    "claude/settings.json": "claude/settings.base.json",
-    "shared/mcp/servers.json": "shared/mcp/servers.base.json",
-    "shared/memory/MEMORY.md": "shared/memory/MEMORY.base.md",
-    "codex/config.toml": "codex/config.base.toml",
+    "claude/settings.json": "base/settings/claude.json",
+    "shared/mcp/servers.json": "base/mcp/servers.json",
+    "shared/memory/MEMORY.md": "base/memory/MEMORY.md",
+    "codex/config.toml": "base/settings/codex.toml",
     "codex/AGENTS.override.md": "shared/AGENTS.md",
 }
+
+# Where a harness from before base/ keeps the same sources. This package runs
+# against whatever repo it finds, so it reads either layout.
+LEGACY_SOURCES: dict[str, str] = {
+    "base/settings/claude.json": "claude/settings.base.json",
+    "base/mcp/servers.json": "shared/mcp/servers.base.json",
+    "base/memory/MEMORY.md": "shared/memory/MEMORY.base.md",
+    "base/settings/codex.toml": "codex/config.base.toml",
+}
+BASE_DIR = "base"
+
+
+def base_source(repo_root: Path, source: str) -> str:
+    """The path this repo uses for a base source: base/..., or its old place in an older harness."""
+    legacy = LEGACY_SOURCES.get(source)
+    if legacy and not (repo_root / source).exists() and (repo_root / legacy).exists():
+        return legacy
+    return source
+
+
+def artifacts(repo_root: Path) -> dict[str, str]:
+    """ARTIFACTS with each source resolved for this repo's layout."""
+    return {artifact: base_source(repo_root, source) for artifact, source in ARTIFACTS.items()}
+
 
 # Tracked sources install.py applies to a file outside the repo, not rendered into it.
 HOME_SOURCES: tuple[str, ...] = ("claude/global-config.base.json",)
@@ -161,7 +186,9 @@ def classify(repo_root: Path, rel_path: str) -> str:
         if str(target).startswith(str(overlays)):
             return "overlay_owned"
 
-    if rel in ARTIFACTS.values() or rel in HOME_SOURCES:
+    if rel in ARTIFACTS.values() or rel in LEGACY_SOURCES.values() or rel in HOME_SOURCES:
+        return "base_source"
+    if rel.startswith(BASE_DIR + "/"):
         return "base_source"
     for directory, _ in CONTENT_KINDS.values():
         if rel.startswith(directory + "/"):
@@ -193,7 +220,7 @@ def writable(repo_root: Path, rel_path: str) -> tuple[bool, str]:
     """May a tool write this path directly? Returns (ok, reason)."""
     kind = classify(repo_root, rel_path)
     if kind == "artifact":
-        source = ARTIFACTS.get(normalize(rel_path))
+        source = artifacts(repo_root).get(normalize(rel_path))
         hint = f" — edit {source} and re-render" if source else " — produced by a render"
         return False, f"{rel_path} is a render artifact{hint}"
     if kind == "overlay_owned":

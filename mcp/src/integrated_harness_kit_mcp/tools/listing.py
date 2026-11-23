@@ -92,7 +92,7 @@ def list_mcp_servers(scope: str = "effective", repo_path: str | None = None) -> 
         return fail
 
     effective = _servers(repo_root / "shared" / "mcp" / "servers.json")
-    base = _servers(repo_root / "shared" / "mcp" / "servers.base.json")
+    base = _servers(repo_root / layout.base_source(repo_root, "base/mcp/servers.json"))
     overlay_only = sorted(set(effective) - set(base))
 
     payload: dict = {"ok": True, "repo": str(repo_root), "overlay_only": overlay_only}

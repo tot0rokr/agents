@@ -1,6 +1,6 @@
 """mcp_server_set / mcp_server_remove — manage MCP server definitions.
 
-Writes go to a tracked source (`shared/mcp/servers.base.json`) or to an
+Writes go to a tracked source (`base/mcp/servers.json`) or to an
 overlay's fragment, never to the rendered `servers.json`, which the next render
 would overwrite. Credentials (`env`, `headers`) are accepted only for an
 overlay target, because the base repo is public.
@@ -15,7 +15,7 @@ from pathlib import Path
 from .. import layout, repo_scripts
 from ._common import need_repo
 
-BASE_REL = "shared/mcp/servers.base.json"
+BASE_REL = "base/mcp/servers.json"
 OVERLAY_FRAGMENT = "mcp/servers.json"
 
 # Server names become keys in JSON, TOML section headers and shell-adjacent
@@ -136,7 +136,7 @@ def mcp_server_remove(name: str, target: str = "base", repo_path: str | None = N
 
 def _target_path(repo_root: Path, target: str) -> tuple[Path, str | None, dict | None]:
     if target == "base":
-        return repo_root / BASE_REL, None, None
+        return repo_root / layout.base_source(repo_root, BASE_REL), None, None
     if not target.startswith("overlay:"):
         return Path(), None, {"ok": False, "error": f"unknown target {target!r}"}
     alias, _, variant = target.split(":", 1)[1].partition(":")

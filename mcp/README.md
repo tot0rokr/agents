@@ -16,7 +16,7 @@ The harness has three kinds of file, and every tool tells them apart before read
 
 | Kind | Examples | Writes | Commits |
 |---|---|---|---|
-| base source | `claude/settings.base.json`, `shared/commands/`, `universal/skills/` | direct | yes |
+| base source | `base/settings/claude.json`, `shared/commands/`, `universal/skills/` | direct | yes |
 | artifact | `claude/settings.json`, `shared/mcp/servers.json`, `shared/memory/MEMORY.md` | render only | never |
 | overlay-owned | anything symlinked out of `overlays/<alias>/` | in the overlay | in the overlay's own repo |
 
@@ -68,7 +68,7 @@ Overlays are private repos layered onto the public base — one per environment,
 `servers.json` merges private overlays into a file the per-tool configs are generated from, and those configs are tracked in a public repo. So rendering is split by audience:
 
 - `artifacts` — `settings.json`, `servers.json`, `MEMORY.md`, `codex/config.toml`, `codex/AGENTS.override.md`. Untracked, base plus overlays.
-- `public` — `gemini/settings.json`, `opencode/opencode.json`. Tracked here, so rendered from `servers.base.json` only, with a check afterwards that no overlay-only server reached them.
+- `public` — `gemini/settings.json`, `opencode/opencode.json`. Tracked here, so rendered from `base/mcp/servers.json` only, with a check afterwards that no overlay-only server reached them.
 - `local` — `~/.claude.json`. This machine, base plus overlays, merging each server's `env` and `headers` so a password that exists only here is not wiped.
 
 ## Repo discovery

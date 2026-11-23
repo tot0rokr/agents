@@ -25,9 +25,11 @@ class ClassifyTests(HarnessTestCase):
         self.assertEqual(self.layout.classify(self.repo, "claude/settings.json"), "artifact")
         ok, reason = self.layout.writable(self.repo, "claude/settings.json")
         self.assertFalse(ok)
-        self.assertIn("settings.base.json", reason)
+        self.assertIn("base/settings/claude.json", reason)
 
     def test_base_source_is_writable(self):
+        self.assertEqual(self.layout.classify(self.repo, "base/settings/claude.json"), "base_source")
+        self.assertEqual(self.layout.classify(self.repo, "base/overlay.json"), "base_source")
         self.assertEqual(self.layout.classify(self.repo, "claude/settings.base.json"), "base_source")
         self.assertEqual(self.layout.classify(self.repo, "claude/global-config.base.json"), "base_source")
         self.assertEqual(self.layout.classify(self.repo, "shared/commands/foo.md"), "base_source")
@@ -61,7 +63,7 @@ class ClassifyTests(HarnessTestCase):
 
     def test_codex_artifacts_and_their_base(self):
         self.assertEqual(self.layout.classify(self.repo, "codex/AGENTS.override.md"), "artifact")
-        self.assertEqual(self.layout.classify(self.repo, "codex/config.base.toml"), "base_source")
+        self.assertEqual(self.layout.classify(self.repo, "base/settings/codex.toml"), "base_source")
         self.assertNotIn("codex/config.toml", self.layout.PUBLIC_RENDERED)
 
     def test_base_provenance_when_not_overlaid(self):
@@ -118,7 +120,37 @@ class LegacyRepoTests(HarnessTestCase):
         self.assertEqual(layout.provenance(self.repo, "shared/commands/x.md"), {"kind": "base"})
 
 
+class PreBaseDirRepoTests(HarnessTestCase):
+    """A repo from before base/ keeps its base sources at their old places."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        from integrated_harness_kit_mcp import layout
+
+        self.layout = layout
+        for new, old in layout.LEGACY_SOURCES.items():
+            (self.repo / old).parent.mkdir(parents=True, exist_ok=True)
+            (self.repo / new).rename(self.repo / old)
+
+    def test_sources_resolve_to_the_old_places(self):
+        sources = self.layout.artifacts(self.repo)
+        self.assertEqual(sources["claude/settings.json"], "claude/settings.base.json")
+        self.assertEqual(sources["shared/mcp/servers.json"], "shared/mcp/servers.base.json")
+        self.assertEqual(sources["codex/config.toml"], "codex/config.base.toml")
+        self.assertEqual(self.layout.base_source(self.repo, "base/memory/MEMORY.md"), "shared/memory/MEMORY.base.md")
+
+    def test_writable_hint_names_the_old_source(self):
+        ok, reason = self.layout.writable(self.repo, "claude/settings.json")
+        self.assertFalse(ok)
+        self.assertIn("claude/settings.base.json", reason)
+
+    def test_a_new_layout_wins_when_both_exist(self):
+        (self.repo / "base" / "settings").mkdir(parents=True, exist_ok=True)
+        (self.repo / "base" / "settings" / "claude.json").write_text("{}\n")
+        self.assertEqual(self.layout.base_source(self.repo, "base/settings/claude.json"), "base/settings/claude.json")
+
+
 class SettingsFixtureTests(HarnessTestCase):
     def test_bases_written(self):
-        data = json.loads((self.repo / "claude" / "settings.base.json").read_text())
+        data = json.loads((self.repo / "base" / "settings" / "claude.json").read_text())
         self.assertEqual(data["model"], "test-model")

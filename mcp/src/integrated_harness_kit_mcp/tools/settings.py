@@ -15,7 +15,7 @@ from pathlib import Path
 from .. import layout, repo_scripts
 from ._common import need_repo
 
-BASE_REL = "claude/settings.base.json"
+BASE_REL = "base/settings/claude.json"
 LIVE_REL = "claude/settings.json"
 OVERLAY_FRAGMENT = "settings/claude.json"
 
@@ -85,7 +85,7 @@ def settings_set(
 
     shadow = None
     if target == "base":
-        path = repo_root / BASE_REL
+        path = repo_root / layout.base_source(repo_root, BASE_REL)
         local_only = _local_only_keys(repo_root)
         if key.split(".")[0] in local_only:
             return {
@@ -157,7 +157,7 @@ def _local_only_keys(repo_root: Path) -> set[str]:
 
 def _sources(repo_root: Path) -> list[tuple[str, dict]]:
     """(label, mapping) from lowest to highest precedence."""
-    out: list[tuple[str, dict]] = [("base", layout.read_json(repo_root / BASE_REL))]
+    out: list[tuple[str, dict]] = [("base", layout.read_json(repo_root / layout.base_source(repo_root, BASE_REL)))]
     for entry in layout.registered_overlays(repo_root):
         alias = entry.get("alias", "")
         if not entry.get("enabled", True):

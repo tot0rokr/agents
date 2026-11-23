@@ -194,8 +194,8 @@ def main() -> int:
         "extra", url="https://example.invalid/mcp", repo_path=str(REPO)
     )
     check("base server added", added_server["ok"], json.dumps(added_server)[:200])
-    base_file = json.loads((REPO / "shared" / "mcp" / "servers.base.json").read_text())["servers"]
-    check("written to servers.base.json", "extra" in base_file)
+    base_file = json.loads((REPO / "base" / "mcp" / "servers.json").read_text())["servers"]
+    check("written to base/mcp/servers.json", "extra" in base_file)
     check(
         "overlay server survived the render",
         "internal-kb" in json.loads((REPO / "shared" / "mcp" / "servers.json").read_text())["servers"],
