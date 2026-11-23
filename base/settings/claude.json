@@ -14,7 +14,7 @@
     "termaid@termaid": true
   },
   "extraKnownMarketplaces": {
-    "termaid": { "source": { "source": "github", "repo": "fasouto/termaid" }, "autoUpdate": false }
+    "termaid": { "source": { "source": "github", "repo": "fasouto/termaid" }, "autoUpdate": true }
   },
   "hooks": {
     "PreCompact": [
